@@ -4,115 +4,234 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f5f1" id="theme-color">
   <meta name="robots" content="noindex">
-  <title>Resume Tailor</title>
-  <link rel="stylesheet" href="styles.css?v=8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Resume Advisor">
+  <title>Resume Advisor</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <script>
+    // Apply a saved light or dark choice before first paint so the page does not flash.
+    try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
-  <header class="bar">
-    <h1>Resume Tailor</h1>
-    <button id="signout" class="link" type="button" hidden>Sign out</button>
+  <header class="appbar">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M10 8h8l5 5v11a1 1 0 0 1-1 1H10a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="none" stroke="var(--accent-fg)" stroke-width="1.8" stroke-linejoin="round"/><path d="M12.5 19l2.2 2.2 4.3-4.6" fill="none" stroke="var(--accent-fg)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h1>Resume Advisor</h1>
+    </div>
+    <div class="appbar-actions">
+      <button id="theme" class="icon-btn" type="button" aria-label="Theme: automatic. Tap to change."></button>
+      <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
   </header>
 
-  <main>
-    <section id="login" aria-labelledby="login-h">
+  <main id="main">
+    <section id="login" class="login" aria-labelledby="login-h">
       <h2 id="login-h">Sign in</h2>
-      <p>Enter your Anthropic API key. It stays in this browser and is sent only to Anthropic.</p>
+      <p class="lede">Enter your Anthropic API key. It stays in this browser and is sent only to Anthropic.</p>
       <form id="login-form" autocomplete="off">
-        <label for="key">API key</label>
-        <input id="key" name="key" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="sk-ant-...">
-        <button id="showkey" type="button" class="link">Show key</button>
-        <label class="check"><input id="remember" type="checkbox"> Remember on this device</label>
-        <button type="submit" class="primary">Sign in</button>
+        <div class="field">
+          <div class="field-head"><label for="key">API key</label><button id="showkey" type="button" class="chip-btn">Show</button></div>
+          <input id="key" name="key" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="sk-ant-...">
+        </div>
+        <label class="toggle-row"><input id="remember" type="checkbox"><span>Remember on this device</span></label>
+        <button type="submit" class="btn primary block">Sign in</button>
         <p id="login-msg" class="msg" role="alert"></p>
       </form>
     </section>
 
-    <section id="app" hidden>
-      <form id="gen">
-        <label for="posting">Job posting</label>
-        <textarea id="posting" rows="10" required placeholder="Paste the full posting: title, duties, requirements."></textarea>
+    <div id="app" hidden>
+      <!-- Tailor -->
+      <section id="v-tailor" class="view" data-view="tailor">
+        <form id="gen" class="tailor" novalidate>
+          <div class="field grow">
+            <div class="field-head">
+              <label for="posting">Job posting</label>
+              <span class="field-tools">
+                <span id="posting-count" class="count" aria-live="off"></span>
+                <button id="paste" type="button" class="chip-btn">Paste</button>
+                <button id="clear-posting" type="button" class="chip-btn">Clear</button>
+              </span>
+            </div>
+            <textarea id="posting" placeholder="Paste the full posting: title, duties, requirements."></textarea>
+          </div>
 
-        <label for="location">Location on this resume</label>
-        <select id="location" required></select>
+          <div class="grid2">
+            <div class="field">
+              <label for="location">Location</label>
+              <select id="location"></select>
+            </div>
+            <div class="field">
+              <label for="applink">Application link</label>
+              <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://...">
+            </div>
+          </div>
 
-        <details class="opts">
-          <summary>Options</summary>
-          <label for="notes">Answers or instructions for this run</label>
-          <textarea id="notes" rows="4" placeholder="Example: Emphasize grant writing. Leave out the 2004 teaching job."></textarea>
-          <label for="model">Model</label>
-          <select id="model"></select>
-          <label class="check"><input id="shorttitles" type="checkbox"> Tight character limits (use short job titles)</label>
-          <label class="check"><input id="personal" type="checkbox" checked> Include the caregiver lines</label>
-        </details>
+          <div class="chips" role="group" aria-label="Options for this resume">
+            <label class="toggle"><input id="shorttitles" type="checkbox"><span>Short titles</span></label>
+            <label class="toggle"><input id="personal" type="checkbox" checked><span>Caregiver lines</span></label>
+            <button id="toggle-notes" type="button" class="chip-btn" aria-expanded="false" aria-controls="notes-field">+ Instructions</button>
+          </div>
+          <div class="field" id="notes-field" hidden>
+            <label for="notes">Instructions for this run</label>
+            <textarea id="notes" rows="3" placeholder="Example: Emphasize grant writing. Leave out the 2004 teaching job."></textarea>
+          </div>
 
-        <button id="go" type="submit" class="primary">Tailor resume</button>
-        <p id="gen-msg" class="msg" role="status" aria-live="polite"></p>
-      </form>
+          <div class="cta">
+            <button id="go" type="submit" class="btn primary block">Tailor resume</button>
+            <p id="gen-msg" class="msg" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
 
-      <section id="out" hidden aria-label="Result">
-        <div class="tabs" role="tablist">
-          <button role="tab" id="t-resume" aria-selected="true" aria-controls="p-resume">Resume</button>
-          <button role="tab" id="t-q" aria-selected="false" aria-controls="p-q">Questions <span id="qcount"></span></button>
-          <button role="tab" id="t-checks" aria-selected="false" aria-controls="p-checks">Checks <span id="ccount"></span></button>
+      <!-- Resume -->
+      <section id="v-resume" class="view" data-view="resume" hidden>
+        <div id="resume-empty" class="empty">
+          <h2>No resume yet</h2>
+          <p>Paste a posting on the Tailor tab and your resume will appear here.</p>
+          <button type="button" class="btn tonal" data-go="tailor">Go to Tailor</button>
         </div>
-
-        <div id="p-resume" role="tabpanel" aria-labelledby="t-resume">
-          <div class="actions">
-            <button id="copy" type="button">Copy text</button>
-            <button id="download" type="button">Download .txt</button>
-            <button id="print" type="button">Print or save PDF</button>
+        <div id="resume-body" hidden>
+          <div class="res-head">
+            <div class="res-title"><strong id="res-title"></strong><span id="res-sub"></span></div>
+            <a id="res-link" class="chip-btn" target="_blank" rel="noopener noreferrer" hidden>Open application</a>
+          </div>
+          <div class="stats">
+            <span id="stat-words" class="pill"></span>
+            <button id="stat-edited" type="button" class="pill pill-btn" hidden>Edited. Revert</button>
+            <button id="stat-checks" type="button" class="pill pill-btn"></button>
+          </div>
+          <div class="toolbar" role="toolbar" aria-label="Resume actions">
+            <button id="copy" type="button" class="btn primary">Copy</button>
+            <button id="download" type="button" class="btn">Download</button>
+            <button id="print" type="button" class="btn">PDF</button>
+            <button id="edit" type="button" class="btn">Edit</button>
           </div>
           <article id="resume" class="paper"></article>
-        </div>
-        <div id="p-q" role="tabpanel" aria-labelledby="t-q" hidden>
-          <p class="hint">Answers are saved once and never asked again. Saved answers are public if you sync to GitHub.</p>
-          <ul id="questions" class="cards"></ul>
-          <button id="merge-banner" type="button" hidden></button>
-          <button id="retailor" type="button" class="primary" hidden>Tailor again with my answers</button>
-          <h3>Fit to the posting</h3>
-          <p id="fit"></p>
-        </div>
-        <div id="p-checks" role="tabpanel" aria-labelledby="t-checks" hidden>
-          <p class="hint">Automatic checks of the output against your profile.</p>
-          <ul id="checks" class="cards"></ul>
+          <textarea id="resume-edit" class="paper-edit" aria-label="Edit resume text" hidden spellcheck="true"></textarea>
+          <p class="hint tap-hint">Tap Copy beside a section or job to fill one form field at a time.</p>
+          <details class="fold" id="kw-fold">
+            <summary><span>Keyword match</span><span id="kw-summary" class="fold-meta"></span></summary>
+            <div id="kw-chips" class="kw"></div>
+            <p class="hint">Keywords are the posting's own terms. A missing one only helps if it is true for you; add it to your library with Teach.</p>
+          </details>
+          <details class="fold">
+            <summary><span>Fit to the posting</span></summary>
+            <p id="fit" class="fit"></p>
+          </details>
         </div>
       </section>
 
-      <section id="review" class="review" hidden aria-live="polite"></section>
+      <!-- Questions -->
+      <section id="v-questions" class="view" data-view="questions" hidden>
+        <div id="q-empty" class="empty">
+          <h2>No questions</h2>
+          <p>After you tailor a resume, anything the advisor needs to know appears here, one question at a time.</p>
+        </div>
+        <div id="q-flow" hidden>
+          <div class="q-progress">
+            <span id="q-step"></span>
+            <div id="q-dots" class="dots" aria-hidden="true"></div>
+          </div>
+          <article id="q-card" class="q-card"></article>
+          <div class="q-nav">
+            <button id="q-prev" type="button" class="btn ghost">Back</button>
+            <button id="q-next" type="button" class="btn ghost">Next</button>
+          </div>
+        </div>
+        <div id="q-done" class="empty" hidden></div>
+      </section>
 
-      <details class="saved">
-        <summary>My library <span id="pending-count"></span></summary>
-        <p class="hint">Answers you save here are turned into proper entries in your master library, the same way as in a chat: reworded as resume bullets, placed on the right job, with conflicts resolved. You review each change before it is saved.</p>
-        <label for="teach">Teach the library something</label>
-        <textarea id="teach" rows="3" placeholder="A fact, a correction, or a standing preference, in your own words"></textarea>
-        <button id="teach-go" type="button">Add and review</button>
-        <button id="merge" type="button" class="primary">Merge saved answers into my library</button>
-        <h3>Saved answers <span id="saved-count"></span></h3>
-        <ul id="saved" class="cards"></ul>
-      </details>
+      <!-- Library -->
+      <section id="v-library" class="view" data-view="library" hidden>
+        <div id="merge-card" class="banner" hidden>
+          <div><strong id="merge-title"></strong><span>Claude turns them into library entries. You review each change first.</span></div>
+          <button id="merge" type="button" class="btn primary">Merge</button>
+        </div>
+        <details class="fold" open>
+          <summary><span>Teach the library</span></summary>
+          <textarea id="teach" rows="3" aria-label="Teach the library something" placeholder="A fact, a correction, or a standing preference, in your own words"></textarea>
+          <button id="teach-go" type="button" class="btn tonal block">Add and review</button>
+        </details>
+        <details class="fold">
+          <summary><span>Saved answers</span><span id="saved-count" class="fold-meta"></span></summary>
+          <ul id="saved" class="cards"></ul>
+        </details>
+        <details class="fold">
+          <summary><span>Open questions about my profile</span><span id="oq-count" class="fold-meta"></span></summary>
+          <ul id="open-questions" class="cards"></ul>
+        </details>
+      </section>
 
-      <details class="sync">
-        <summary>Sync saved answers to GitHub (optional)</summary>
-        <p class="hint">Without a token, answers stay on this device. With one, they save to <code>data/knowledge.json</code> in the public <code>kbroadie/resume</code> repo and follow you to every device. Anything saved there is public.</p>
-        <p class="hint">Create a fine-grained token at github.com > Settings > Developer settings > Personal access tokens, limited to the <code>resume</code> repository, with Contents set to read and write.</p>
-        <form id="token-form" autocomplete="off">
-          <label for="token">GitHub token</label>
-          <input id="token" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="github_pat_...">
-          <label class="check"><input id="token-remember" type="checkbox"> Remember on this device</label>
-          <button type="submit" class="primary">Save token and sync</button>
-        </form>
-        <button id="token-clear" type="button" class="link">Remove token</button>
-        <p id="sync-status" class="hint" role="status"></p>
-      </details>
-
-      <details class="profile">
-        <summary>Profile questions waiting on you</summary>
-        <ul id="open-questions" class="cards"></ul>
-      </details>
-    </section>
+      <!-- History -->
+      <section id="v-history" class="view" data-view="history" hidden>
+        <div id="history-empty" class="empty">
+          <h2>No applications yet</h2>
+          <p>Each resume you tailor is kept here on this device, with its application link and status.</p>
+        </div>
+        <ul id="history" class="cards" hidden></ul>
+      </section>
+    </div>
   </main>
 
-  <script type="module" src="app.js?v=8"></script>
+  <nav id="tabbar" class="tabbar" aria-label="Sections" hidden>
+    <button type="button" data-view="tailor" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span>Tailor</span></button>
+    <button type="button" data-view="resume"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg><span>Resume</span></button>
+    <button type="button" data-view="questions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg><span>Questions</span><b id="badge-q" class="badge" hidden></b></button>
+    <button type="button" data-view="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5V21h16v-4"/></svg><span>Library</span><b id="badge-l" class="badge" hidden></b></button>
+    <button type="button" data-view="history"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>History</span></button>
+  </nav>
+
+  <!-- Settings -->
+  <dialog id="settings-dialog" class="sheet" aria-labelledby="settings-h">
+    <div class="sheet-head"><h2 id="settings-h">Settings</h2><button type="button" class="chip-btn" data-close>Done</button></div>
+    <div class="field">
+      <label for="model">Model</label>
+      <select id="model"></select>
+    </div>
+    <h3>Sync to GitHub</h3>
+    <p class="hint">Without a token, saved answers stay on this device. With one, they save to <code>data/knowledge.json</code> in the public <code>kbroadie/resume</code> repo, merged answers update <code>data/profile.json</code>, and it all follows you to every device. Anything saved there is public.</p>
+    <p class="hint">Create a fine-grained token at github.com under Settings, Developer settings, Personal access tokens, limited to the <code>resume</code> repository, with Contents set to read and write.</p>
+    <form id="token-form" autocomplete="off">
+      <div class="field">
+        <label for="token">GitHub token</label>
+        <input id="token" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="github_pat_...">
+      </div>
+      <label class="toggle-row"><input id="token-remember" type="checkbox"><span>Remember on this device</span></label>
+      <div class="row2">
+        <button type="submit" class="btn primary">Save token and sync</button>
+        <button id="token-clear" type="button" class="btn">Remove token</button>
+      </div>
+    </form>
+    <p id="sync-status" class="hint" role="status"></p>
+    <h3>This device</h3>
+    <div class="row2">
+      <button id="clear-history" type="button" class="btn">Clear history</button>
+      <button id="signout" type="button" class="btn">Sign out</button>
+    </div>
+  </dialog>
+
+  <!-- Checks -->
+  <dialog id="checks-dialog" class="sheet" aria-labelledby="checks-h">
+    <div class="sheet-head"><h2 id="checks-h">Checks</h2><button type="button" class="chip-btn" data-close>Done</button></div>
+    <p class="hint">Automatic checks of the resume against your library.</p>
+    <ul id="checks" class="cards"></ul>
+  </dialog>
+
+  <!-- Library merge review -->
+  <dialog id="review-dialog" class="sheet" aria-labelledby="review-h">
+    <div class="sheet-head"><h2 id="review-h">Library changes</h2><button type="button" class="chip-btn" data-close>Close</button></div>
+    <div id="review" aria-live="polite"></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="app.js?v=10"></script>
 </body>
 </html>

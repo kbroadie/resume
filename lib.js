@@ -1,5 +1,5 @@
 // Pure functions shared by the browser app and the tests. No DOM access here.
-import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=8';
+import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=10';
 
 export const MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5 (default)' },
@@ -98,6 +98,8 @@ HARD RULES
 19. KNOWLEDGE holds Kevin's earlier answers, dismissed topics, and standing preferences. Never ask a question whose topic is in KNOWLEDGE. Follow every preference. Facts he supplied appear in PROFILE as bullets with the tag "learned", and general_facts apply to the whole resume.
 20. Every question needs a stable "topic": a lowercase-hyphenated slug naming the underlying fact, never the posting (for example "desert-sun-webmaster-detail"). Reuse the same slug whenever the same fact comes up again. Add role_id when the question is about one role. Ask only what would change this resume or future ones, and ask at most 6 questions.
 
+21. posting_title and company come straight from the posting (empty string if absent). posting_keywords lists 8 to 15 of its most important skills, tools, and terms in the posting's own wording, whether or not the resume covers them.
+
 Respond only by calling submit_resume, exactly once. Do not write any text outside the tool call.`;
 
 export const RESUME_TOOL = {
@@ -105,8 +107,11 @@ export const RESUME_TOOL = {
   description: 'Submit the tailored resume content, its sources, and questions for Kevin.',
   input_schema: {
     type: 'object',
-    required: ['headline', 'summary', 'skills', 'experience', 'education_ids', 'certification_ids', 'affiliation_ids', 'questions', 'fit_notes'],
+    required: ['posting_title', 'company', 'posting_keywords', 'headline', 'summary', 'skills', 'experience', 'education_ids', 'certification_ids', 'affiliation_ids', 'questions', 'fit_notes'],
     properties: {
+      posting_title: { type: 'string', description: 'The job title exactly as written in the posting, or an empty string.' },
+      company: { type: 'string', description: 'The employer name exactly as written in the posting, or an empty string.' },
+      posting_keywords: { type: 'array', items: { type: 'string' }, description: '8 to 15 of the posting\'s most important skills, tools, and terms, exactly as the posting words them.' },
       headline: { type: 'string', description: 'Short professional headline matching the posting, e.g. "Brand and Presentation Designer". Must be supportable by the profile.' },
       summary: {
         type: 'object',
@@ -360,23 +365,80 @@ export const escapeHtml = (s) =>
 export function renderHtml(doc) {
   const e = escapeHtml;
   const parts = [];
-  parts.push(`<h1>${e(doc.name)}</h1>`);
+  parts.push(`<header class="doc-head"><h1>${e(doc.name)}</h1>`);
   if (doc.headline) parts.push(`<p class="headline">${e(doc.headline)}</p>`);
-  if (doc.contact.length) parts.push(`<p class="contact">${doc.contact.map(e).join(' | ')}</p>`);
-  if (doc.summary) parts.push(`<h2>Summary</h2><p>${e(doc.summary)}</p>`);
+  if (doc.contact.length) parts.push(`<p class="contact">${doc.contact.map((x) => `<span class="nw">${e(x)}</span>`).join(' | ')}</p>`);
+  parts.push('</header>');
+  if (doc.summary) parts.push(`<section data-section="summary"><h2>Summary</h2><p>${e(doc.summary)}</p></section>`);
   if (doc.skills.length) {
-    parts.push('<h2>Skills</h2>');
+    parts.push('<section data-section="skills"><h2>Skills</h2>');
     for (const g of doc.skills) parts.push(`<p><strong>${e(g.category)}:</strong> ${g.items.map(e).join(', ')}</p>`);
+    parts.push('</section>');
   }
   if (doc.experience.length) {
-    parts.push('<h2>Experience</h2>');
-    for (const x of doc.experience) {
-      parts.push(`<h3>${e([x.title, x.org, x.location].filter(Boolean).join(' | '))}</h3><p class="dates">${e(x.dates)}</p>`);
+    parts.push('<section data-section="experience"><h2>Experience</h2>');
+    doc.experience.forEach((x, i) => {
+      parts.push(`<div class="role" data-role="${i}"><h3>${e([x.title, x.org, x.location].filter(Boolean).join(' | '))}</h3><p class="dates">${e(x.dates)}</p>`);
       if (x.bullets.length) parts.push(`<ul>${x.bullets.map((b) => `<li>${e(b)}</li>`).join('')}</ul>`);
-    }
+      parts.push('</div>');
+    });
+    parts.push('</section>');
   }
-  if (doc.education.length) parts.push(`<h2>Education</h2>${doc.education.map((x) => `<p>${e(x)}</p>`).join('')}`);
-  if (doc.certifications.length) parts.push(`<h2>Certifications</h2>${doc.certifications.map((x) => `<p>${e(x)}</p>`).join('')}`);
-  if (doc.affiliations.length) parts.push(`<h2>Affiliations</h2>${doc.affiliations.map((x) => `<p>${e(x)}</p>`).join('')}`);
+  if (doc.education.length) parts.push(`<section data-section="education"><h2>Education</h2>${doc.education.map((x) => `<p>${e(x)}</p>`).join('')}</section>`);
+  if (doc.certifications.length) parts.push(`<section data-section="certifications"><h2>Certifications</h2>${doc.certifications.map((x) => `<p>${e(x)}</p>`).join('')}</section>`);
+  if (doc.affiliations.length) parts.push(`<section data-section="affiliations"><h2>Affiliations</h2>${doc.affiliations.map((x) => `<p>${e(x)}</p>`).join('')}</section>`);
   return parts.join('\n');
+}
+
+// Plain text for each section and role, so a single field on an application form can be filled by one tap.
+export function sectionTexts(doc) {
+  const roleText = (x) => [[x.title, x.org, x.location].filter(Boolean).join(' | '), x.dates, ...x.bullets.map((b) => `- ${b}`)].join('\n');
+  return {
+    summary: doc.summary,
+    skills: doc.skills.map((g) => `${g.category}: ${g.items.join(', ')}`).join('\n'),
+    experience: doc.experience.map(roleText).join('\n\n'),
+    education: doc.education.join('\n'),
+    certifications: doc.certifications.join('\n'),
+    affiliations: doc.affiliations.join('\n'),
+    roles: doc.experience.map(roleText)
+  };
+}
+
+// Accepts "example.com/jobs/1", "http://...", or "https://..." and returns a clean https/http URL, or null.
+export function normalizeUrl(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname.includes('.')) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Which of the posting's keywords appear in the resume text. Matching ignores case and requires whole words.
+export function keywordCoverage(keywords, text) {
+  const haystack = ` ${String(text).toLowerCase().replace(/[^a-z0-9+#./&' -]/g, ' ')} `;
+  const covered = [];
+  const missing = [];
+  const seen = new Set();
+  for (const kw of (keywords || []).map((k) => String(k).trim()).filter((k) => k && !seen.has(k.toLowerCase()) && seen.add(k.toLowerCase()))) {
+    const needle = kw.toLowerCase().replace(/[^a-z0-9+#./&' -]/g, ' ').replace(/\s+/g, ' ').trim();
+    const hit = needle && new RegExp(`(^|[^a-z0-9])${escapeRe(needle)}([^a-z0-9]|$)`).test(haystack);
+    (hit ? covered : missing).push(kw);
+  }
+  return { covered, missing };
+}
+
+export function resumeStats(text) {
+  const words = (String(text).match(/\S+/g) || []).length;
+  return { words, pages: Math.max(1, Math.round((words / 480) * 10) / 10) };
+}
+
+export function resumeFilename(company, title) {
+  const part = (s) => String(s || '').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 30);
+  return ['Kevin-Broadie-Resume', part(company), part(title)].filter(Boolean).join('-') + '.txt';
 }

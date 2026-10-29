@@ -1,0 +1,11 @@
+{
+  "name": "Resume Advisor",
+  "short_name": "Advisor",
+  "description": "Tailor a resume to a job posting using only your verified library.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f1",
+  "theme_color": "#f6f5f1",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

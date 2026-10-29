@@ -1,6 +1,18 @@
-# Resume Tailor
+# Resume Advisor
 
 A mobile-first web app that tailors Kevin Broadie's resume to a pasted job posting. Claude chooses the phrasing and priorities. It uses only what is in `data/profile.json`.
+
+## Using it
+
+Five tabs along the bottom keep each task on one screen:
+
+- **Tailor:** paste the posting (or tap Paste), pick a location, optionally add the application link, and tap Tailor resume. Your draft is saved, so a reload never loses it. Ctrl or Cmd + Enter also tailors.
+- **Resume:** the result, with word and page count, a keyword match against the posting's own terms, and a checks summary. Copy the whole resume, or tap the small Copy button on a section or a single job to fill one application field. Download, print to PDF, or Edit the text by hand (with Revert). Open application takes you to the link you saved.
+- **Questions:** one at a time. Save an answer as a fact or a preference, pick between wordings, skip, or choose Don't ask again. Answered questions never come back.
+- **Library:** merge saved answers into the master profile, or teach it something directly.
+- **History:** every resume you tailor, on this device only, with its status (Drafted, Applied, Interviewing, Offer, Rejected, Withdrawn), application link, and keyword match.
+
+The sun and moon button switches between automatic, light, and dark. Settings (gear) holds the model, GitHub sync, and sign-out. You can add the page to your phone's home screen.
 
 ## How it works
 
