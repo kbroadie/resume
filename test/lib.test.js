@@ -127,7 +127,7 @@ test('title options and location are applied; bad title ids are flagged', () => 
 
 test('document renders in order with the personal line and no education years', () => {
   const doc = buildDoc(good(), profile, { includePersonalLine: true });
-  assert.deepEqual(doc.experience.map((e) => e.title), ['Grant Review Panelist (contract)', 'Family caregiver and estate executor', 'Branding & Visual Communications Specialist']);
+  assert.deepEqual(doc.experience.map((e) => e.title), ['Grant Review Panelist (contract)', 'Family caregiver and estate executor', 'Branding & Visual Communications Specialist', 'Family caregiver']);
   const text = renderText(doc);
   assert.match(text, /^KEVIN BROADIE/);
   assert.match(text, /\(555\) 555-5555/);
@@ -135,7 +135,6 @@ test('document renders in order with the personal line and no education years', 
   assert.match(text, /2025 - Present/);
   assert.ok(!/Bachelor[^\n]*\d{4}/.test(text));
   assert.ok(!text.includes('kevinbroadie.com'));
-  assert.match(renderText(buildDoc(good(), profile, { includePortfolio: true })), /kevinbroadie\.com/);
   assert.ok(!renderText(buildDoc(good(), profile, { includePersonalLine: false })).includes('caregiver'));
 });
 
@@ -167,4 +166,18 @@ test('requests never force a tool call, which newer models reject', () => {
   const req = buildRequest(profile, { posting: 'x', now });
   assert.deepEqual(req.tool_choice, { type: 'auto' });
   assert.match(req.system, /calling submit_resume/);
+});
+
+test("meet-the-museum, Raisers Edge, portfolio, caregiving and team-lead answers are in the profile", () => {
+  const raw = JSON.stringify(profile.roles);
+  assert.ok(!raw.includes('White Party'));
+  assert.ok(profile.never_include.some((x) => x.includes('White Party')));
+  assert.match(profile.roles.find((r) => r.id === 'psam').bullets.find((b) => b.id === 'ps.crm').text, /Raiser's Edge, the CRM/);
+  assert.deepEqual(profile.contact.links, []);
+  assert.ok(profile.preferences.some((x) => x.includes('no portfolio yet')));
+  assert.ok(!JSON.stringify({ links: profile.contact.links, roles: profile.roles }).includes('kevinbroadie.com'));
+  const care = profile.personal_lines.find((l) => l.id === 'care2');
+  assert.deepEqual([care.title, care.start, care.end], ['Family caregiver', '2021-10', '2022-04']);
+  assert.match(profile.roles.find((r) => r.id === 'konsist').bullets.find((b) => b.id === 'ko.team').text, /^Led designers and programmers/);
+  assert.match(buildRequest(profile, { posting: 'x', now }).user, /no portfolio yet/);
 });

@@ -1,7 +1,7 @@
-import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup } from './lib.js?v=7';
-import { emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged } from './knowledge.js?v=7';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=7';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=7';
+import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup } from './lib.js?v=8';
+import { emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged } from './knowledge.js?v=8';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=8';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=8';
 
 const API = 'https://api.anthropic.com/v1';
 const KEY_STORE = 'resume-tailor-key';
@@ -321,7 +321,7 @@ async function generate(event) {
   event.preventDefault();
   const msg = $('gen-msg');
   const btn = $('go');
-  const opts = { includePortfolio: $('portfolio').checked, includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
+  const opts = { includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
   try { localStorage.setItem('resume-tailor-location', opts.locationId); } catch { /* ignore */ }
   const req = buildRequest(profile, { posting: $('posting').value, notes: $('notes').value, knowledge, ...opts });
   btn.disabled = true;

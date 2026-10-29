@@ -59,7 +59,7 @@ test('role fields, dates, title options, skills, preferences and open questions'
   assert.equal(out.profile.roles.find((r) => r.id === 'gw').end, null);
   assert.equal(out.profile.roles.find((r) => r.id === 'psam').title_options[0].id, 'it');
   assert.ok(out.profile.skills.some((s) => s.name === 'Figma'));
-  assert.deepEqual(out.profile.preferences, ['Lead with grant writing for public-sector postings.']);
+  assert.ok(out.profile.preferences.includes('Lead with grant writing for public-sector postings.'));
   assert.ok(out.profile.never_include.includes('Salary history'));
   assert.deepEqual(out.profile.open_questions, ['Other']);
   const why = out.skipped.map((s) => s.why).join('|');

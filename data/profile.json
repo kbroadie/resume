@@ -31,21 +31,9 @@
       }
     ],
     "locations_note": "Kevin uses both addresses and picks one per application. Only city and state are ever printed.",
-    "links": [
-      {
-        "label": "Portfolio",
-        "url": "https://kevinbroadie.com",
-        "use_when": "The posting asks for a portfolio or web presence."
-      }
-    ]
-  },
-  "personal_line": {
-    "id": "care",
-    "title": "Family caregiver and estate executor",
-    "start": "2025",
-    "end": null,
-    "status": "verified",
-    "note": "Short neutral line approved by Kevin to cover gaps. No other details about the family situation go on a resume."
+    "links": [],
+    "portfolio": null,
+    "portfolio_note": "Kevin has no portfolio yet. Never include a portfolio link, and never present kevinbroadie.com as one."
   },
   "roles": [
     {
@@ -703,9 +691,10 @@
             "leadership",
             "management",
             "mentoring",
+            "programmers",
             "team-building"
           ],
-          "text": "Recruited, mentored, and directed local designers and web developers, supervising two designers and two developers, delegating tasks, and providing constructive feedback and support for professional growth."
+          "text": "Led designers and programmers, recruiting, mentoring, and directing local designers and web developers. Supervised two designers and two developers, delegated tasks, and provided constructive feedback and support for professional growth."
         },
         {
           "id": "ko.pm",
@@ -1099,10 +1088,11 @@
           "status": "verified",
           "tags": [
             "crm",
+            "fundraising",
             "nonprofit",
-            "fundraising"
+            "raisers-edge"
           ],
-          "text": "Maintained CRM systems used for member and donor communications.",
+          "text": "Maintained Raiser's Edge, the CRM used for member and donor communications.",
           "group": "ps-crm"
         },
         {
@@ -1125,7 +1115,7 @@
             "av",
             "fundraising"
           ],
-          "text": "VJ'd the 2014 Meet the Museum White Party launch fundraiser, designing original graphics and collaborating directly with the musical entertainment.",
+          "text": "VJ'd the 2014 Meet the Museum annual fundraiser, designing original graphics and collaborating directly with the musical entertainment.",
           "group": "ps-vj"
         },
         {
@@ -1894,11 +1884,12 @@
     "Street address",
     "Names or phone numbers of supervisors and references",
     "Self-identification survey answers",
-    "Details of Kevin's family situation beyond the approved personal line",
+    "Details of Kevin's family situation beyond the approved caregiver lines",
     "Expired certifications",
     "Any mention of the Hemet, Dodgers, or SB Museum organizations, or any implication of employment there",
     "Application-form answers such as salary, start date, work authorization, referrals, and EEO answers",
-    "KBCS (Kevin's decision)"
+    "KBCS (Kevin's decision)",
+    "The phrase \"White Party\" (Meet the Museum is the museum's annual fundraiser)"
   ],
   "open_questions": [],
   "affiliations": [
@@ -1909,5 +1900,25 @@
       "use_when": "Education, STEM, youth, or equity-focused postings, or when space allows. Never print a year."
     }
   ],
-  "preferences": []
+  "preferences": [
+    "Kevin has no portfolio yet. If a posting asks for one, do not invent or substitute a link; ask a question with topic portfolio-link and say so plainly."
+  ],
+  "personal_lines": [
+    {
+      "id": "care2",
+      "title": "Family caregiver",
+      "start": "2021-10",
+      "end": "2022-04",
+      "status": "verified",
+      "note": "Kevin: the gap between Konsist and CVAG was caretaking for his dad. Dates are the Konsist end and CVAG start dates."
+    },
+    {
+      "id": "care",
+      "title": "Family caregiver and estate executor",
+      "start": "2025",
+      "end": null,
+      "status": "verified",
+      "note": "Short neutral line approved by Kevin to cover gaps. No other details about the family situation go on a resume."
+    }
+  ]
 }
