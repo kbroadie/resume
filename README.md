@@ -6,7 +6,7 @@ A mobile-first web app that tailors Kevin Broadie's resume to a pasted job posti
 
 Five tabs along the bottom keep each task on one screen:
 
-- **Tailor:** paste the posting (or tap Paste), pick a location, optionally add the application link, and tap Tailor resume. Your draft is saved, so a reload never loses it. Ctrl or Cmd + Enter also tailors.
+- **Tailor:** paste the posting (or tap Paste), pick a location, optionally add the application link, and tap Tailor resume. If you add a link and leave the posting box empty, Claude reads the posting from the link first (using Anthropic's web fetch tool, limited to that site) and puts the text in the box for you to check. Tap Read beside the link to do only that step. Pages that need a login, or organizations that have not allowed web fetch, fall back to pasting. Your draft is saved, so a reload never loses it. Ctrl or Cmd + Enter also tailors.
 - **Resume:** the result, with word and page count, a keyword match against the posting's own terms, and a checks summary. Copy the whole resume, or tap the small Copy button on a section or a single job to fill one application field. Download, print to PDF, or Edit the text by hand (with Revert). Open application takes you to the link you saved.
 - **Questions:** one at a time. Save an answer as a fact or a preference, pick between wordings, skip, or choose Don't ask again. Answered questions never come back.
 - **Library:** merge saved answers into the master profile, or teach it something directly.

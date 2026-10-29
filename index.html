@@ -15,7 +15,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=10">
+  <link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
   <header class="appbar">
@@ -69,7 +69,10 @@
             </div>
             <div class="field">
               <label for="applink">Application link</label>
-              <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://...">
+              <div class="input-wrap">
+                <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://...">
+                <button id="fetch" type="button" class="chip-btn" aria-label="Read the posting from this link" hidden>Read</button>
+              </div>
             </div>
           </div>
 
@@ -232,6 +235,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=10"></script>
+  <script type="module" src="app.js?v=13"></script>
 </body>
 </html>

@@ -101,7 +101,10 @@ textarea { resize: none; line-height: 1.5; }
 .field.grow textarea { flex: 1; margin-top: 0; }
 ::placeholder { color: color-mix(in srgb, var(--muted) 75%, transparent); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
-.grid2 { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--s3); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--s3); }
+.input-wrap { position: relative; }
+.input-wrap input { padding-right: 4.2rem; }
+.input-wrap .chip-btn { position: absolute; right: 8px; top: calc(50% + 2px); transform: translateY(-50%); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-top: var(--s3); }
 
 /* Buttons */

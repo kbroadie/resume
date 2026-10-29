@@ -1,13 +1,13 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
-  sectionTexts, normalizeUrl, keywordCoverage, resumeStats, resumeFilename
-} from './lib.js?v=10';
+  sectionTexts, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting
+} from './lib.js?v=13';
 import {
   emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=10';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=10';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=10';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=10';
+} from './knowledge.js?v=13';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=13';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=13';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=13';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -163,7 +163,8 @@ export function cleanKey(raw) {
 // so the model chooses to call it; if it replies in text instead, ask once more.
 async function askClaude({ system, tools, tool_choice, user }, toolName) {
   const messages = [{ role: 'user', content: user }];
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  let nudges = 0;
+  for (let turn = 0; turn < 6; turn += 1) {
     const res = await fetch(`${API}/messages`, {
       method: 'POST',
       headers: headers(getKey()),
@@ -179,6 +180,9 @@ async function askClaude({ system, tools, tool_choice, user }, toolName) {
     if (block) return block.input;
     if (data.stop_reason === 'max_tokens') throw new Error('The response was cut off. Try again, or trim the posting.');
     messages.push({ role: 'assistant', content: data.content || [{ type: 'text', text: '(no content)' }] });
+    // A server tool (web fetch) may pause a long turn; resume it by sending the turn back as it was.
+    if (data.stop_reason === 'pause_turn') continue;
+    if (nudges++ >= 1) break;
     messages.push({ role: 'user', content: `Call ${toolName} now.` });
   }
   throw new Error('The model did not respond with the expected result. Try again.');
@@ -302,9 +306,16 @@ function restoreDraft() {
   updatePostingCount();
 }
 
+const POSTING_PLACEHOLDER = 'Paste the full posting: title, duties, requirements.';
+const POSTING_PLACEHOLDER_LINK = 'Optional. Leave this empty and Claude will read the posting from your application link.';
+
+// With a valid link the pasted posting becomes optional, and the box says so.
 function updatePostingCount() {
   const n = wordCount($('posting').value);
-  $('posting-count').textContent = n ? `${n} words` : '';
+  const linkOk = Boolean(normalizeUrl($('applink').value));
+  $('posting-count').textContent = n ? `${n} words` : linkOk ? 'Optional with a link' : '';
+  $('posting').placeholder = linkOk ? POSTING_PLACEHOLDER_LINK : POSTING_PLACEHOLDER;
+  $('fetch').hidden = !linkOk;
 }
 
 function setNotesOpen(open) {
@@ -313,27 +324,66 @@ function setNotesOpen(open) {
   $('toggle-notes').textContent = open ? '- Instructions' : '+ Instructions';
 }
 
+/* ---------- reading a posting from its link ---------- */
+
+async function readPostingFromLink(link) {
+  const model = $('model').value;
+  let input;
+  try {
+    input = await askClaude(buildFetchRequest(link, model), 'report_posting');
+  } catch (err) {
+    // If this model rejects the newer web fetch variant, try the basic one once.
+    if (!/web_fetch|tool/i.test(err.message)) throw err;
+    input = await askClaude(buildFetchRequest(link, model, { basic: true }), 'report_posting');
+  }
+  return readFetchedPosting(input);
+}
+
+const sentence = (s) => (/[.!?]$/.test(s) ? s : `${s}.`);
+const fetchHint = (message) => (/web.?fetch|not enabled|permission/i.test(message)
+  ? `${sentence(message)} Reading links needs web fetch to be allowed for your Anthropic organization. Paste the posting text instead.`
+  : `${sentence(message)} Paste the posting text instead.`);
+
+// Fills the posting box from the link. Returns true when the posting text is now in the box.
+async function fillPostingFromLink(link, msg) {
+  msg.textContent = 'Reading the posting from your link...';
+  try {
+    const got = await readPostingFromLink(link);
+    if (!got.ok) { msg.textContent = fetchHint(`Could not read that page: ${got.problem}`); $('posting').focus(); return false; }
+    $('posting').value = got.text;
+    updatePostingCount();
+    saveDraft();
+    toast(`Read the posting${got.title ? `: ${got.title}` : ''}. Review it below.`);
+    return true;
+  } catch (err) {
+    msg.textContent = fetchHint(`Could not read that page: ${err.message}`);
+    $('posting').focus();
+    return false;
+  }
+}
+
 /* ---------- tailoring ---------- */
 
 async function generate(event) {
   event.preventDefault();
   const msg = $('gen-msg');
   msg.textContent = '';
-  const posting = $('posting').value.trim();
-  if (!posting) { msg.textContent = 'Paste a job posting first.'; $('posting').focus(); return; }
-  if (!$('location').value) { msg.textContent = 'Choose a location for this resume.'; $('location').focus(); return; }
   const rawLink = $('applink').value.trim();
   const link = normalizeUrl(rawLink);
   if (rawLink && !link) { msg.textContent = 'That application link does not look right. Use a full web address.'; $('applink').focus(); return; }
   if (link) $('applink').value = link;
+  if (!$('posting').value.trim() && !link) { msg.textContent = 'Paste the posting, or add its application link and leave the box empty.'; $('posting').focus(); return; }
+  if (!$('location').value) { msg.textContent = 'Choose a location for this resume.'; $('location').focus(); return; }
 
   const opts = { includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
   store.set(LOCATION_STORE, opts.locationId);
-  saveDraft();
-  const req = buildRequest(profile, { posting, notes: $('notes').value, knowledge, ...opts });
-  setBusy($('go'), true, 'Tailoring...');
-  msg.textContent = 'This usually takes 20 to 60 seconds.';
+  setBusy($('go'), true, 'Working...');
   try {
+    // No pasted posting: read it from the link first, then show it so it can be checked.
+    if (!$('posting').value.trim() && !(await fillPostingFromLink(link, msg))) return;
+    saveDraft();
+    const req = buildRequest(profile, { posting: $('posting').value.trim(), notes: $('notes').value, knowledge, ...opts });
+    msg.textContent = 'Tailoring. This usually takes 20 to 60 seconds.';
     const input = await askClaude(req, 'submit_resume');
     const issues = validateResult(input, profile, { ...opts, knowledge });
     acceptResult(input, issues, opts, link);
@@ -750,7 +800,14 @@ async function init() {
 
   // tailor form
   $('gen').addEventListener('submit', generate);
-  for (const id of ['posting', 'applink', 'notes', 'shorttitles', 'personal']) $(id).addEventListener('input', () => { saveDraft(); if (id === 'posting') updatePostingCount(); });
+  for (const id of ['posting', 'applink', 'notes', 'shorttitles', 'personal']) $(id).addEventListener('input', () => { saveDraft(); if (id === 'posting' || id === 'applink') updatePostingCount(); });
+  $('fetch').addEventListener('click', async () => {
+    const link = normalizeUrl($('applink').value);
+    if (!link) return;
+    $('applink').value = link;
+    setBusy($('fetch'), true, 'Reading...');
+    try { await fillPostingFromLink(link, $('gen-msg')); } finally { setBusy($('fetch'), false); }
+  });
   $('posting').addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') $('gen').requestSubmit(); });
   $('toggle-notes').addEventListener('click', () => setNotesOpen($('notes-field').hidden));
   $('clear-posting').addEventListener('click', () => { $('posting').value = ''; updatePostingCount(); saveDraft(); $('posting').focus(); });
