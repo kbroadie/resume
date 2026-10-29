@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex">
+  <title>Resume Tailor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="bar">
+    <h1>Resume Tailor</h1>
+    <button id="signout" class="link" type="button" hidden>Sign out</button>
+  </header>
+
+  <main>
+    <section id="login" aria-labelledby="login-h">
+      <h2 id="login-h">Sign in</h2>
+      <p>Enter your Anthropic API key. It stays in this browser and is sent only to Anthropic.</p>
+      <form id="login-form" autocomplete="off">
+        <label for="key">API key</label>
+        <input id="key" name="key" type="password" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="sk-ant-...">
+        <label class="check"><input id="remember" type="checkbox"> Remember on this device</label>
+        <button type="submit" class="primary">Sign in</button>
+        <p id="login-msg" class="msg" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="app" hidden>
+      <form id="gen">
+        <label for="posting">Job posting</label>
+        <textarea id="posting" rows="10" required placeholder="Paste the full posting: title, duties, requirements."></textarea>
+
+        <details class="opts">
+          <summary>Options</summary>
+          <label for="notes">Answers or instructions for this run</label>
+          <textarea id="notes" rows="4" placeholder="Example: Use the $9,500 figure. Location is Palm Springs, CA."></textarea>
+          <label for="model">Model</label>
+          <select id="model"></select>
+          <label class="check"><input id="portfolio" type="checkbox"> Include portfolio link</label>
+          <label class="check"><input id="personal" type="checkbox" checked> Include the caregiver and executor line</label>
+        </details>
+
+        <button id="go" type="submit" class="primary">Tailor resume</button>
+        <p id="gen-msg" class="msg" role="status" aria-live="polite"></p>
+      </form>
+
+      <section id="out" hidden aria-label="Result">
+        <div class="tabs" role="tablist">
+          <button role="tab" id="t-resume" aria-selected="true" aria-controls="p-resume">Resume</button>
+          <button role="tab" id="t-q" aria-selected="false" aria-controls="p-q">Questions <span id="qcount"></span></button>
+          <button role="tab" id="t-checks" aria-selected="false" aria-controls="p-checks">Checks <span id="ccount"></span></button>
+        </div>
+
+        <div id="p-resume" role="tabpanel" aria-labelledby="t-resume">
+          <div class="actions">
+            <button id="copy" type="button">Copy text</button>
+            <button id="download" type="button">Download .txt</button>
+            <button id="print" type="button">Print or save PDF</button>
+          </div>
+          <article id="resume" class="paper"></article>
+        </div>
+        <div id="p-q" role="tabpanel" aria-labelledby="t-q" hidden>
+          <p class="hint">Type your answers in Options and tailor again.</p>
+          <ul id="questions" class="cards"></ul>
+          <h3>Fit to the posting</h3>
+          <p id="fit"></p>
+        </div>
+        <div id="p-checks" role="tabpanel" aria-labelledby="t-checks" hidden>
+          <p class="hint">Automatic checks of the output against your profile.</p>
+          <ul id="checks" class="cards"></ul>
+        </div>
+      </section>
+
+      <details class="profile">
+        <summary>Profile questions waiting on you</summary>
+        <ul id="open-questions" class="cards"></ul>
+      </details>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

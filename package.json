@@ -1,0 +1,11 @@
+{
+  "name": "resume",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mobile-first static web app that tailors a resume to a pasted job posting using only a verified profile.",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "serve": "python3 -m http.server 8080"
+  }
+}

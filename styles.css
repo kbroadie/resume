@@ -1,0 +1,102 @@
+/* Mobile first: the base rules are the phone layout; wider screens only add. */
+:root {
+  --bg: #f6f5f2;
+  --fg: #1c1b19;
+  --muted: #5d5a54;
+  --card: #ffffff;
+  --line: #d8d4cb;
+  --accent: #1d4e89;
+  --accent-fg: #ffffff;
+  --warn: #8a4b00;
+  --gutter: 16px;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151412;
+    --fg: #ecebe7;
+    --muted: #a9a59b;
+    --card: #1f1e1b;
+    --line: #36342f;
+    --accent: #7fb0ea;
+    --accent-fg: #0d1a2b;
+    --warn: #f0b36a;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px var(--gutter);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--bg); z-index: 2;
+}
+.bar h1 { font-size: 1.1rem; margin: 0; }
+main { padding: var(--gutter); max-width: 44rem; margin: 0 auto; }
+h2 { font-size: 1.25rem; margin: 0 0 .5rem; }
+h3 { font-size: 1rem; margin: 1.25rem 0 .25rem; }
+label { display: block; font-weight: 600; margin: 1rem 0 .35rem; }
+.check { display: flex; gap: .6rem; align-items: center; font-weight: 400; min-height: 44px; }
+.check input { width: 22px; height: 22px; flex: none; }
+input[type=password], select, textarea {
+  width: 100%; font: inherit; color: inherit; background: var(--card);
+  border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+}
+textarea { resize: vertical; }
+button {
+  font: inherit; min-height: 44px; padding: 0 16px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer;
+}
+button.primary { width: 100%; margin-top: 1rem; background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+button.link { border: 0; background: none; color: var(--accent); text-decoration: underline; padding: 0 4px; }
+button:disabled { opacity: .6; cursor: progress; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.msg { min-height: 1.5em; margin: .75rem 0 0; color: var(--warn); }
+.hint { color: var(--muted); margin: .5rem 0; }
+details { margin-top: 1rem; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px 12px; background: var(--card); }
+summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+
+.tabs { display: flex; gap: 6px; margin: 1.5rem 0 .75rem; overflow-x: auto; }
+.tabs button { flex: 1 0 auto; }
+.tabs button[aria-selected=true] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: .75rem; }
+
+.paper {
+  background: #fff; color: #111; border: 1px solid var(--line); border-radius: 8px;
+  padding: 18px 16px; overflow-wrap: anywhere;
+}
+.paper h1 { font-size: 1.4rem; margin: 0; }
+.paper .headline { margin: .1rem 0; font-weight: 600; }
+.paper .contact { margin: 0 0 .5rem; color: #333; }
+.paper h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #bbb; margin: 1.1rem 0 .4rem; padding-bottom: 2px; }
+.paper h3 { font-size: 1rem; margin: .8rem 0 0; }
+.paper .dates { margin: 0 0 .2rem; color: #333; }
+.paper p { margin: .3rem 0; }
+.paper ul { margin: .2rem 0 .4rem; padding-left: 1.2rem; }
+
+.cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cards li { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.tag { display: inline-block; font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-right: .5rem; }
+
+@media (min-width: 40rem) {
+  :root { --gutter: 24px; }
+  button.primary { width: auto; min-width: 12rem; }
+  .actions { grid-template-columns: repeat(3, auto); justify-content: start; }
+  .paper { padding: 32px 36px; }
+}
+
+@media print {
+  body { background: #fff; }
+  .bar, #login, #gen, .tabs, .actions, #p-q, #p-checks, .profile, #signout { display: none !important; }
+  main { padding: 0; max-width: none; }
+  #out, #p-resume { display: block !important; }
+  .paper { border: 0; padding: 0; font-size: 11pt; }
+}
+#out { scroll-margin-top: 64px; }
