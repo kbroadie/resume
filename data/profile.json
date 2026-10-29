@@ -2,8 +2,8 @@
   "meta": {
     "about": "Source of truth for resume generation. Every item comes from Kevin's own documents (the Resume Bullet Points doc, the CVAG Flexing doc) or his direct statements. The app never invents beyond it.",
     "excluded_sources": "The Hemet, Dodgers, and SB Museum tabs are copies of forms Kevin filled out when applying to those organizations. His own statements there may be used, but he was not hired by any of them: never name those organizations or imply he worked there. Application answers (references, salary, start date, work authorization, referral, EEO) are not resume content.",
-    "career_start": "1999-09",
-    "career_start_note": "First tax-paying job: The Desert Sun, 1999. Years of experience are computed from this date.",
+    "career_start": "1999-07",
+    "career_start_note": "First tax-paying job: paid internship at The Desert Sun, July 1999. Years of experience are computed from this date.",
     "public_service_roles": [
       "cac",
       "cvag"
@@ -1357,10 +1357,20 @@
       "title": "Online Producer",
       "org": "The Desert Sun",
       "location": "Palm Springs, CA",
-      "start": "1999-09",
+      "start": "1999-07",
       "end": "2009-07",
       "status": "verified",
       "bullets": [
+        {
+          "id": "ds.start",
+          "status": "verified",
+          "tags": [
+            "career",
+            "internship",
+            "growth"
+          ],
+          "text": "Started as a paid intern in July 1999 and was hired as Online Production Coordinator in September 1999."
+        },
         {
           "id": "ds.web",
           "status": "verified",
@@ -1503,7 +1513,8 @@
           ],
           "status": "verified"
         }
-      ]
+      ],
+      "start_note": "Started as a paid intern in July 1999; hired as Online Production Coordinator in September 1999; ended as Online Producer in July 2009. The promotion date is unknown."
     },
     {
       "id": "kbcs",
@@ -1883,7 +1894,7 @@
     "KBCS (Kevin's decision)"
   ],
   "open_questions": [
-    "Desert Sun start: Sep 1999 (Resume Bullet Points) or Jul 1999 (Hemet form)? The profile uses Sep 1999.",
+    "When were you promoted from Online Production Coordinator to Online Producer? The Desert Sun entry uses Online Producer for the whole span until you say.",
     "The NGO resume's CVAG survey bullet was cut off mid-sentence. How did it end?"
   ],
   "affiliations": [
