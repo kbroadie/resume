@@ -50,7 +50,8 @@ test('resume content never names the unsuccessful applications and keeps correct
   const raw = JSON.stringify({ roles: profile.roles, skills: profile.skills, education: profile.education, certifications: profile.certifications });
   for (const banned of ['Dodger', 'Hemet', 'SB Museum', 'Expert', 'over $9,000', 'Graphic Design with']) assert.ok(!raw.includes(banned), banned);
   assert.equal(profile.roles.find((r) => r.id === 'ds').end, '2009-07');
-  assert.equal(profile.roles.find((r) => r.id === 'kbcs').status, 'needs_confirm');
+  assert.equal(profile.roles.find((r) => r.id === 'kbcs').status, 'excluded');
+  assert.ok(!splitProfile(profile).usable.roles.some((r) => r.id === 'kbcs') && !splitProfile(profile).heldBack.some((h) => h.id === 'kbcs'));
   assert.equal(profile.education[0].degree, 'Bachelor of Arts, Graphic Design & Marketing');
   assert.ok(profile.certifications.every((c) => c.status === 'expired'));
   assert.ok(JSON.stringify(profile.skills.map((x) => x.name)).match(/Hyper-V/) && !profile.skills.some((x) => 'level' in x));
@@ -60,6 +61,15 @@ test('only CAC and CVAG are government roles; the CVAG government title is an op
   assert.deepEqual(profile.roles.filter((r) => r.government).map((r) => r.id).sort(), ['cac', 'cvag']);
   assert.equal(profile.roles.find((r) => r.id === 'cvag').title_options[0].title, 'Program Specialist II, Visual Branding & Communications Specialist');
   assert.equal(profile.roles.find((r) => r.id === 'konsist').title, 'Art Director');
+});
+
+test('affiliations render only when chosen', () => {
+  const r = good();
+  assert.ok(!renderText(buildDoc(r, profile)).includes('MESA'));
+  r.affiliation_ids = ['aff.mesa'];
+  assert.match(renderText(buildDoc(r, profile)), /AFFILIATIONS\nMember, MESA/);
+  r.affiliation_ids = ['nope'];
+  assert.match(validateResult(r, profile, { now }).join(), /Affiliations: unknown/);
 });
 
 test('expired certifications are never offered', () => {
@@ -75,7 +85,7 @@ const good = () => ({
     { role_id: 'cvag', bullets: [{ text: 'Co-facilitated grant writing that earned a $50 million LTCAP grant.', source_ids: ['cvag.grant'] }] },
     { role_id: 'cac', bullets: [{ text: 'Reviewed non-profit grant applications for the 2026 cycle.', source_ids: ['cac.1'] }] }
   ],
-  education_ids: ['ed.csusb'], certification_ids: [], questions: [], fit_notes: ''
+  education_ids: ["ed.csusb"], certification_ids: [], affiliation_ids: [], questions: [], fit_notes: ''
 });
 
 test('clean output validates', () => {

@@ -37,7 +37,7 @@ export function splitProfile(profile, { includePersonalLine = true } = {}) {
     if (role.status === 'verified') {
       usable.push({ ...role, bullets });
       for (const b of held) heldBack.push({ id: b.id, role: role.org, text: b.text });
-    } else {
+    } else if (role.status === 'needs_confirm') {
       heldBack.push({ id: role.id, role: role.org, title: role.title, question: role.confirm_question });
     }
   }
@@ -48,6 +48,7 @@ export function splitProfile(profile, { includePersonalLine = true } = {}) {
       skills: profile.skills,
       education: profile.education.filter((e) => e.status === 'verified'),
       certifications: profile.certifications.filter((c) => c.status === 'verified'),
+      affiliations: (profile.affiliations || []).filter((a) => a.status === 'verified'),
       personal_line: personal
     },
     heldBack
@@ -74,7 +75,8 @@ HARD RULES
 14. Only the roles marked "government": true (California Arts Council and CVAG) were public service jobs. Never describe any other role as public service, government, or civic work.
 15. Titles: use a role's default title unless a title_options entry's use_when clearly applies to this posting; then set title_id to that option's id. Never use the CVAG government title for a non-government posting.
 16. Never print a proficiency level for any skill (no "Expert", "Advanced", "Intermediate"). Skills with an internal_level or level_note are listed plainly, and only when the posting asks for them. If a posting makes the applicant rate themselves, say so in a question.
-17. Use nothing that is not in PROFILE. Some profile wording began as answers on applications Kevin did not win. Never name those organizations or imply he worked there.
+17. Affiliations: list one only when its use_when fits the posting. Never print years.
+18. Use nothing that is not in PROFILE. Some profile wording began as answers on applications Kevin did not win. Never name those organizations or imply he worked there.
 
 Call submit_resume exactly once.`;
 
@@ -83,7 +85,7 @@ export const RESUME_TOOL = {
   description: 'Submit the tailored resume content, its sources, and questions for Kevin.',
   input_schema: {
     type: 'object',
-    required: ['headline', 'summary', 'skills', 'experience', 'education_ids', 'certification_ids', 'questions', 'fit_notes'],
+    required: ['headline', 'summary', 'skills', 'experience', 'education_ids', 'certification_ids', 'affiliation_ids', 'questions', 'fit_notes'],
     properties: {
       headline: { type: 'string', description: 'Short professional headline matching the posting, e.g. "Brand and Presentation Designer". Must be supportable by the profile.' },
       summary: {
@@ -129,6 +131,7 @@ export const RESUME_TOOL = {
       },
       education_ids: { type: 'array', items: { type: 'string' } },
       certification_ids: { type: 'array', items: { type: 'string' } },
+      affiliation_ids: { type: 'array', items: { type: 'string' }, description: 'Affiliations to list, only if relevant to the posting. Often empty.' },
       questions: {
         type: 'array',
         items: {
@@ -227,6 +230,8 @@ export function validateResult(result, profile, { includePersonalLine = true, no
   const eduIds = new Set(usable.education.map((e) => e.id));
   for (const id of result.education_ids || []) if (!eduIds.has(id)) issues.push(`Education: unknown "${id}"`);
   const certIds = new Set(usable.certifications.map((c) => c.id));
+  const affIds = new Set(usable.affiliations.map((a) => a.id));
+  for (const id of result.affiliation_ids || []) if (!affIds.has(id)) issues.push(`Affiliations: unknown "${id}"`);
   for (const id of result.certification_ids || []) if (!certIds.has(id)) issues.push(`Certifications: unknown "${id}"`);
   return issues;
 }
@@ -272,6 +277,10 @@ export function buildDoc(result, profile, { includePortfolio = false, includePer
     .map((id) => usable.certifications.find((x) => x.id === id)?.name)
     .filter(Boolean);
 
+  const affiliations = (result.affiliation_ids || [])
+    .map((id) => usable.affiliations.find((a) => a.id === id)?.text)
+    .filter(Boolean);
+
   return {
     name: c.name,
     headline: result.headline,
@@ -280,7 +289,8 @@ export function buildDoc(result, profile, { includePortfolio = false, includePer
     skills,
     experience: entries,
     education,
-    certifications
+    certifications,
+    affiliations
   };
 }
 
@@ -307,6 +317,7 @@ export function renderText(doc) {
   }
   if (doc.education.length) out.push('EDUCATION', ...doc.education, '');
   if (doc.certifications.length) out.push('CERTIFICATIONS', ...doc.certifications, '');
+  if (doc.affiliations.length) out.push('AFFILIATIONS', ...doc.affiliations, '');
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
@@ -333,5 +344,6 @@ export function renderHtml(doc) {
   }
   if (doc.education.length) parts.push(`<h2>Education</h2>${doc.education.map((x) => `<p>${e(x)}</p>`).join('')}`);
   if (doc.certifications.length) parts.push(`<h2>Certifications</h2>${doc.certifications.map((x) => `<p>${e(x)}</p>`).join('')}`);
+  if (doc.affiliations.length) parts.push(`<h2>Affiliations</h2>${doc.affiliations.map((x) => `<p>${e(x)}</p>`).join('')}`);
   return parts.join('\n');
 }

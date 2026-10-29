@@ -213,8 +213,7 @@
             "public-sector",
             "transportation"
           ],
-          "text": "Built the pairwise comparison survey app that CVAG used for its Transportation Project Prioritization Survey (TPPS).",
-          "note": "Kevin: TPPS is the CVAG Transportation Project Prioritization Survey. Use the full name once, then TPPS."
+          "text": "Built the pairwise comparison survey app that CVAG used for its Transportation Project Prioritization Survey (TPPS), which shaped five years of transportation investment priorities across the Coachella Valley."
         },
         {
           "id": "cvag.survey3",
@@ -479,18 +478,6 @@
           "text": "Scheduled and coordinated meetings, and attended meetings and took notes as assigned."
         },
         {
-          "id": "cvag.survey5",
-          "text": "Coded a pairwise comparison survey used to shape five years of transportation investment priorities across the Coachella Valley.",
-          "tags": [
-            "software",
-            "custom-app",
-            "public-sector",
-            "transportation"
-          ],
-          "note": "Not yet confirmed to be the same survey as the TPPS bullet; do not merge them.",
-          "status": "verified"
-        },
-        {
           "id": "cvag.docs2",
           "text": "Designed and produced public-facing marketing and communication materials including brochures, fact sheets, newsletters, event signage, annual reports, budget books, and executive presentations for four regional agencies.",
           "tags": [
@@ -695,7 +682,7 @@
       "org": "Konsist",
       "location": "Palm Springs, CA",
       "start": "2016-01",
-      "end": "2021-09",
+      "end": "2021-10",
       "status": "verified",
       "bullets": [
         {
@@ -1397,8 +1384,7 @@
             "sales",
             "web"
           ],
-          "text": "Updated and maintained classified listings on Home Finder and cars.com, scanning and color-correcting photos, fact-checking and correcting listing information, and notifying ad reps of the corrections.",
-          "note": "Kevin wrote 'home finder'. Confirm the exact site name styling."
+          "text": "Updated and maintained classified listings on Home Finder and cars.com, scanning and color-correcting photos, fact-checking and correcting listing information, and notifying ad reps of the corrections."
         },
         {
           "id": "ds.archive",
@@ -1410,7 +1396,7 @@
             "classification",
             "news"
           ],
-          "text": "Served as archivist, manually checking the local story database against the printed dailies and weeklies using standardized classification methods."
+          "text": "Assisted the archivist in manually checking the local story database against the printed dailies and weeklies using standardized classification methods."
         },
         {
           "id": "ds.ads",
@@ -1526,12 +1512,11 @@
       "location": "Palm Springs, CA",
       "start": "2004-04",
       "end": null,
-      "status": "needs_confirm",
-      "confirm_question": "KBCS (Principal Consultant, April 2004 to present) overlaps your other jobs. Include it on this resume?",
+      "status": "excluded",
       "bullets": [
         {
           "id": "kbcs.1",
-          "status": "needs_confirm",
+          "status": "excluded",
           "tags": [
             "consulting",
             "it",
@@ -1540,7 +1525,8 @@
           ],
           "text": "Provided systems engineering, software training, and operations support to small businesses and individuals without in-house IT, translating complex technical problems into practical, plain-language solutions."
         }
-      ]
+      ],
+      "note": "Kevin: do not include KBCS on resumes."
     },
     {
       "id": "cod",
@@ -1893,15 +1879,19 @@
     "Details of Kevin's family situation beyond the approved personal line",
     "Expired certifications",
     "Any mention of the Hemet, Dodgers, or SB Museum organizations, or any implication of employment there",
-    "Application-form answers such as salary, start date, work authorization, referrals, and EEO answers"
+    "Application-form answers such as salary, start date, work authorization, referrals, and EEO answers",
+    "KBCS (Kevin's decision)"
   ],
   "open_questions": [
-    "Is the TPPS survey the same survey that shaped five years of transportation investment priorities? The two bullets stay separate until you confirm.",
     "Desert Sun start: Sep 1999 (Resume Bullet Points) or Jul 1999 (Hemet form)? The profile uses Sep 1999.",
-    "Konsist end: Sep 2021 (three documents) or Oct 2021 (Hemet form)? The profile uses Sep 2021.",
-    "KBCS (April 2004 to present): include it on resumes? It is held back until you say.",
-    "The NGO resume's CVAG survey bullet was cut off mid-sentence. How did it end?",
-    "Home Finder: is that the exact name and styling of the site?",
-    "MESA membership (College of the Desert) appears in your SB Museum answers. Should it be available for resumes?"
+    "The NGO resume's CVAG survey bullet was cut off mid-sentence. How did it end?"
+  ],
+  "affiliations": [
+    {
+      "id": "aff.mesa",
+      "text": "Member, MESA (Mathematics, Engineering, Science Achievement) program, College of the Desert",
+      "status": "verified",
+      "use_when": "Education, STEM, youth, or equity-focused postings, or when space allows. Never print a year."
+    }
   ]
 }
