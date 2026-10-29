@@ -18,7 +18,10 @@ Output is one column of plain text with standard headings (Summary, Skills, Expe
 - Bullets sharing a `group` are alternate wordings or conflicting figures. Claude may use one and must ask which.
 - The Checks tab flags any bullet with no source, a source from another role, a held-back source, an extra alternate wording, or a number that is not in its sources.
 - `never_include` lists items that stay out of resumes (license number, street address, reference details, self-ID answers, family details beyond the approved line).
-- Education years are never printed.
+- Education years are never printed. Skill levels are never printed. Expired certifications are not used.
+- Content from the Hemet, Dodgers, and SB Museum tabs of the source doc is excluded entirely.
+- Only California Arts Council and CVAG are public service jobs. The government title "Program Specialist II, Visual Branding & Communications Specialist" is used only for government postings, and "Creative Technology Director" only when it fits a posting better than "Art Director".
+- Pick the location (Yucca Valley or Palm Springs) for each resume. Only city and state are printed.
 
 ## Editing the profile
 

@@ -47,6 +47,11 @@ async function loadProfile() {
   const res = await fetch('data/profile.json', { cache: 'no-cache' });
   if (!res.ok) throw new Error('Could not load data/profile.json');
   profile = await res.json();
+  $('location').innerHTML = '<option value="" disabled>Choose a location</option>' +
+    profile.contact.locations.map((l) => `<option value="${l.id}">${escapeHtml(l.label)}</option>`).join('');
+  let saved = '';
+  try { saved = localStorage.getItem('resume-tailor-location') || ''; } catch { /* ignore */ }
+  $('location').value = profile.contact.locations.some((l) => l.id === saved) ? saved : '';
   $('open-questions').innerHTML = profile.open_questions.map((q) => `<li>${escapeHtml(q)}</li>`).join('');
 }
 
@@ -82,7 +87,8 @@ async function generate(event) {
   event.preventDefault();
   const msg = $('gen-msg');
   const btn = $('go');
-  const opts = { includePortfolio: $('portfolio').checked, includePersonalLine: $('personal').checked };
+  const opts = { includePortfolio: $('portfolio').checked, includePersonalLine: $('personal').checked, locationId: $('location').value };
+  try { localStorage.setItem('resume-tailor-location', opts.locationId); } catch { /* ignore */ }
   const req = buildRequest(profile, { posting: $('posting').value, notes: $('notes').value, ...opts });
   btn.disabled = true;
   msg.textContent = 'Tailoring. This takes up to a minute.';

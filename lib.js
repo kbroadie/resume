@@ -71,6 +71,11 @@ HARD RULES
 12. Questions are for Kevin. Keep them pointed and short. Kinds: "conflict" (variant wording or figures, ask which), "gap" (the posting wants something the profile does not show), "clarify" (a fact needed to use a profile item well), "strengthen" (a specific detail, number, or example Kevin could add). Do not ask about things already answered in USER_NOTES.
 13. fit_notes: 2 to 5 short lines on how the resume lines up with the posting's main requirements and where it does not.
 
+14. Only the roles marked "government": true (California Arts Council and CVAG) were public service jobs. Never describe any other role as public service, government, or civic work.
+15. Titles: use a role's default title unless a title_options entry's use_when clearly applies to this posting; then set title_id to that option's id. Never use the CVAG government title for a non-government posting.
+16. Never print a proficiency level for any skill (no "Expert", "Advanced", "Intermediate"). Skills with an internal_level or level_note are listed plainly, and only when the posting asks for them. If a posting makes the applicant rate themselves, say so in a question.
+17. Use nothing that is not in PROFILE. In particular, do not use details from job applications Kevin made elsewhere; they are not part of the profile.
+
 Call submit_resume exactly once.`;
 
 export const RESUME_TOOL = {
@@ -107,6 +112,7 @@ export const RESUME_TOOL = {
           required: ['role_id', 'bullets'],
           properties: {
             role_id: { type: 'string' },
+            title_id: { type: 'string', description: 'Optional id of a title_options entry that fits this posting. Omit to use the default title.' },
             bullets: {
               type: 'array',
               items: {
@@ -195,6 +201,10 @@ export function validateResult(result, profile, { includePersonalLine = true, no
     if (!roleIds.has(exp.role_id)) { issues.push(`Experience: unknown or held-back role "${exp.role_id}"`); continue; }
     if (seenRoles.has(exp.role_id)) issues.push(`Experience: role "${exp.role_id}" appears twice`);
     seenRoles.add(exp.role_id);
+    if (exp.title_id) {
+      const role = usable.roles.find((r) => r.id === exp.role_id);
+      if (!(role.title_options || []).some((o) => o.id === exp.title_id)) issues.push(`${exp.role_id}: unknown title option "${exp.title_id}"`);
+    }
     for (const [i, b] of (exp.bullets || []).entries()) {
       checkText(`${exp.role_id} bullet ${i + 1}`, b.text, b.source_ids);
       for (const id of b.source_ids || []) {
@@ -222,13 +232,14 @@ export function validateResult(result, profile, { includePersonalLine = true, no
 }
 
 // Turns the model's output plus the profile into a plain document structure.
-export function buildDoc(result, profile, { includePortfolio = false, includePersonalLine = true } = {}) {
+export function buildDoc(result, profile, { includePortfolio = false, includePersonalLine = true, locationId = null } = {}) {
   const { usable } = splitProfile(profile, { includePersonalLine });
   const roleById = new Map(usable.roles.map((r) => [r.id, r]));
   const skillById = new Map(usable.skills.map((s) => [s.id, s]));
   const c = profile.contact;
 
-  const contact = [c.location, c.email, c.phone].filter(Boolean);
+  const location = (c.locations || []).find((l) => l.id === locationId)?.label;
+  const contact = [location, c.email, c.phone].filter(Boolean);
   if (includePortfolio) for (const l of c.links) contact.push(l.url);
 
   const entries = [];
@@ -237,7 +248,7 @@ export function buildDoc(result, profile, { includePortfolio = false, includePer
     if (!role) continue;
     entries.push({
       sort: role.start,
-      title: role.title,
+      title: (role.title_options || []).find((o) => o.id === exp.title_id)?.title || role.title,
       org: role.org,
       location: role.location,
       dates: dateRange(role.start, role.end),
