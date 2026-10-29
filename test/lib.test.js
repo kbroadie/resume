@@ -162,3 +162,9 @@ test('Desert Sun uses the full title, with the short form available for characte
   r.experience.push({ role_id: 'ds', title_id: 'short', bullets: [{ text: 'Maintained classified and real estate databases.', source_ids: ['ds.db'] }] });
   assert.ok(buildDoc(r, profile).experience.some((e) => e.title === 'Online Producer'));
 });
+
+test('requests never force a tool call, which newer models reject', () => {
+  const req = buildRequest(profile, { posting: 'x', now });
+  assert.deepEqual(req.tool_choice, { type: 'auto' });
+  assert.match(req.system, /calling submit_resume/);
+});

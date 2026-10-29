@@ -78,7 +78,7 @@ HARD RULES
 17. Affiliations: list one only when its use_when fits the posting. Never print years.
 18. Use nothing that is not in PROFILE. Some profile wording began as answers on applications Kevin did not win. Never name those organizations or imply he worked there.
 
-Call submit_resume exactly once.`;
+Respond only by calling submit_resume, exactly once. Do not write any text outside the tool call.`;
 
 export const RESUME_TOOL = {
   name: 'submit_resume',
@@ -164,7 +164,7 @@ export function buildRequest(profile, { posting, notes = '', includePortfolio = 
     '<HELD_BACK>', JSON.stringify(heldBack), '</HELD_BACK>',
     '<PROFILE>', JSON.stringify(usable), '</PROFILE>'
   ].join('\n');
-  return { system: SYSTEM_PROMPT, tools: [RESUME_TOOL], tool_choice: { type: 'tool', name: 'submit_resume' }, user };
+  return { system: SYSTEM_PROMPT, tools: [RESUME_TOOL], tool_choice: { type: 'auto' }, user };
 }
 
 const NUMBER_RE = /\$?\d[\d,]*(?:\.\d+)?/g;

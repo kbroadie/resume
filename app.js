@@ -1,4 +1,4 @@
-import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml } from './lib.js?v=4';
+import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml } from './lib.js?v=5';
 
 const API = 'https://api.anthropic.com/v1';
 const KEY_STORE = 'resume-tailor-key';
@@ -108,25 +108,36 @@ async function generate(event) {
   btn.disabled = true;
   msg.textContent = 'Tailoring. This takes up to a minute.';
   try {
-    const res = await fetch(`${API}/messages`, {
-      method: 'POST',
-      headers: headers(currentKey()),
-      body: JSON.stringify({
-        model: $('model').value,
-        max_tokens: 8000,
-        system: req.system,
-        tools: req.tools,
-        tool_choice: req.tool_choice,
-        messages: [{ role: 'user', content: req.user }]
-      })
-    });
-    if (res.status === 401) { clearKey(); show(false); throw new Error('Your key was rejected. Sign in again.'); }
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error?.message || `Request failed (HTTP ${res.status}).`);
+    const messages = [{ role: 'user', content: req.user }];
+    let block = null;
+    // Newer models reject a forced tool call, so the model chooses to call it. If it replies in text
+    // instead, ask once more.
+    for (let attempt = 0; attempt < 2 && !block; attempt += 1) {
+      const res = await fetch(`${API}/messages`, {
+        method: 'POST',
+        headers: headers(currentKey()),
+        body: JSON.stringify({
+          model: $('model').value,
+          max_tokens: 8000,
+          system: req.system,
+          tools: req.tools,
+          tool_choice: req.tool_choice,
+          messages
+        })
+      });
+      if (res.status === 401) { clearKey(); show(false); throw new Error('Your key was rejected. Sign in again.'); }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error?.message || `Request failed (HTTP ${res.status}).`);
+      }
+      const data = await res.json();
+      block = (data.content || []).find((b) => b.type === 'tool_use' && b.name === 'submit_resume');
+      if (!block) {
+        if (data.stop_reason === 'max_tokens') throw new Error('The response was cut off. Try again, or trim the posting.');
+        messages.push({ role: 'assistant', content: data.content || [{ type: 'text', text: '(no content)' }] });
+        messages.push({ role: 'user', content: 'Call submit_resume now with the completed resume.' });
+      }
     }
-    const data = await res.json();
-    const block = (data.content || []).find((b) => b.type === 'tool_use');
     if (!block) throw new Error('The model did not return a resume. Try again.');
     renderResult(block.input, validateResult(block.input, profile, opts), opts);
     msg.textContent = '';
