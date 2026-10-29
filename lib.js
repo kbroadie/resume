@@ -74,7 +74,7 @@ HARD RULES
 14. Only the roles marked "government": true (California Arts Council and CVAG) were public service jobs. Never describe any other role as public service, government, or civic work.
 15. Titles: use a role's default title unless a title_options entry's use_when clearly applies to this posting; then set title_id to that option's id. Never use the CVAG government title for a non-government posting.
 16. Never print a proficiency level for any skill (no "Expert", "Advanced", "Intermediate"). Skills with an internal_level or level_note are listed plainly, and only when the posting asks for them. If a posting makes the applicant rate themselves, say so in a question.
-17. Use nothing that is not in PROFILE. In particular, do not use details from job applications Kevin made elsewhere; they are not part of the profile.
+17. Use nothing that is not in PROFILE. Some profile wording began as answers on applications Kevin did not win. Never name those organizations or imply he worked there.
 
 Call submit_resume exactly once.`;
 

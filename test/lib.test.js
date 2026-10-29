@@ -46,15 +46,14 @@ test('held-back roles and bullets never reach the model as usable', () => {
   assert.ok(!req.user.split('<PROFILE>')[1].includes('"cod"'));
 });
 
-test('nothing from the excluded application tabs or corrected facts remains', () => {
+test('resume content never names the unsuccessful applications and keeps corrected facts', () => {
   const raw = JSON.stringify({ roles: profile.roles, skills: profile.skills, education: profile.education, certifications: profile.certifications });
-  for (const banned of ['Veeam', 'Hyper-V', 'Meraki', 'VoIP', 'Dodger', 'Hemet', 'Expert', 'Advanced', 'KBCS', 'Tropical Storm', 'General Assembly', 'over $9,000', 'Jul 1999', '"2009-09"', 'Intermediate"', 'Graphic Design with']) {
-    if (banned === 'Intermediate"') continue; // internal_level on Excel is allowed; see the next test
-    assert.ok(!raw.includes(banned), banned);
-  }
+  for (const banned of ['Dodger', 'Hemet', 'SB Museum', 'Expert', 'over $9,000', 'Graphic Design with']) assert.ok(!raw.includes(banned), banned);
   assert.equal(profile.roles.find((r) => r.id === 'ds').end, '2009-07');
+  assert.equal(profile.roles.find((r) => r.id === 'kbcs').status, 'needs_confirm');
   assert.equal(profile.education[0].degree, 'Bachelor of Arts, Graphic Design & Marketing');
   assert.ok(profile.certifications.every((c) => c.status === 'expired'));
+  assert.ok(JSON.stringify(profile.skills.map((x) => x.name)).match(/Hyper-V/) && !profile.skills.some((x) => 'level' in x));
 });
 
 test('only CAC and CVAG are government roles; the CVAG government title is an option', () => {

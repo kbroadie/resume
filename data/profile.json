@@ -1,7 +1,7 @@
 {
   "meta": {
-    "about": "Source of truth for resume generation. Every item comes from the tabs of Kevin's Resume Bullet Points doc (TDS, COD, Geekworks, CSUSB, Konsist, PSAM, CVAG, Additional Expertise, NGO Marketing), the CVAG Flexing doc, or his direct statements. The app never invents beyond it.",
-    "excluded_sources": "Tabs written for specific past applications (Hemet, Dodgers, SB Museum) are not used for anything. Kevin's instruction.",
+    "about": "Source of truth for resume generation. Every item comes from Kevin's own documents (the Resume Bullet Points doc, the CVAG Flexing doc) or his direct statements. The app never invents beyond it.",
+    "excluded_sources": "The Hemet, Dodgers, and SB Museum tabs are copies of forms Kevin filled out when applying to those organizations. His own statements there may be used, but he was not hired by any of them: never name those organizations or imply he worked there. Application answers (references, salary, start date, work authorization, referral, EEO) are not resume content.",
     "career_start": "1999-09",
     "career_start_note": "First tax-paying job: The Desert Sun, 1999. Years of experience are computed from this date.",
     "public_service_roles": [
@@ -280,7 +280,8 @@
             "print",
             "reports"
           ],
-          "text": "Designed and developed annual reports, budget books, grant applications, public presentations, event collateral, and fact sheets for four regional agencies."
+          "text": "Designed and developed annual reports, budget books, grant applications, public presentations, event collateral, and fact sheets for four regional agencies.",
+          "group": "cvag-deliverables"
         },
         {
           "id": "cvag.pres",
@@ -476,6 +477,208 @@
             "admin"
           ],
           "text": "Scheduled and coordinated meetings, and attended meetings and took notes as assigned."
+        },
+        {
+          "id": "cvag.survey5",
+          "text": "Coded a pairwise comparison survey used to shape five years of transportation investment priorities across the Coachella Valley.",
+          "tags": [
+            "software",
+            "custom-app",
+            "public-sector",
+            "transportation"
+          ],
+          "note": "Not yet confirmed to be the same survey as the TPPS bullet; do not merge them.",
+          "status": "verified"
+        },
+        {
+          "id": "cvag.docs2",
+          "text": "Designed and produced public-facing marketing and communication materials including brochures, fact sheets, newsletters, event signage, annual reports, budget books, and executive presentations for four regional agencies.",
+          "tags": [
+            "design",
+            "public-sector",
+            "print",
+            "reports"
+          ],
+          "group": "cvag-deliverables",
+          "status": "verified"
+        },
+        {
+          "id": "cvag.pres.exec",
+          "text": "Designed and produced hundreds of executive-level and pitch-style presentations, including pitch decks, partnership proposals, annual reports, budget books, and executive briefings.",
+          "tags": [
+            "presentations",
+            "design",
+            "executive",
+            "pitch-decks"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.pres2",
+          "text": "Transformed content-heavy outlines, written briefs, and data-driven materials into visual presentation narratives supporting strategic, funding, and stakeholder objectives.",
+          "tags": [
+            "presentations",
+            "design",
+            "storytelling"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.pres3",
+          "text": "Built and maintained scalable presentation systems, including PowerPoint master slide templates, branded layouts, and standardized workflows for consistency and rapid turnaround.",
+          "tags": [
+            "presentations",
+            "templates",
+            "systems"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.pres4",
+          "text": "Developed custom charts, infographics, maps, illustrations, iconography, and visual systems to communicate complex financial, transportation, and policy data.",
+          "tags": [
+            "design",
+            "data-viz",
+            "infographics"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.pres5",
+          "text": "Managed multiple concurrent design projects in a deadline-driven environment, frequently delivering same-day or short-notice executive presentations.",
+          "tags": [
+            "deadlines",
+            "project-management",
+            "executive"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.founded",
+          "text": "Founded and scaled the presentation design, branding, and visual communications function for a newly created role, establishing systems, workflows, and standards, and serving as primary designer for executive leadership and cross-departmental stakeholders.",
+          "tags": [
+            "leadership",
+            "systems",
+            "design",
+            "initiative"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.partners",
+          "text": "Partnered with strategy, finance, legal, and program teams to align visual communication with organizational goals and decision-making requirements, and produced co-branded materials that adhered strictly to brand standards.",
+          "tags": [
+            "collaboration",
+            "branding",
+            "executive"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.kb",
+          "text": "Built a knowledge base and document libraries in SharePoint for digital asset management and Office template deployment.",
+          "tags": [
+            "sharepoint",
+            "digital-asset-management",
+            "systems"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.tracker",
+          "text": "Built a custom SharePoint slide-deck production tracker to manage workflow with staff report authors, replacing lengthy email chains and drop-ins.",
+          "tags": [
+            "sharepoint",
+            "workflow",
+            "automation"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.stream",
+          "text": "Directed A/V production and managed all content for over 200 public meetings livestreamed to the community, posting agendas and supporting materials to agency websites.",
+          "tags": [
+            "av",
+            "livestream",
+            "public-sector",
+            "web"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.ada",
+          "text": "Maintained agency websites with ADA accessibility compliance and accurate public-facing information.",
+          "tags": [
+            "web",
+            "accessibility",
+            "public-sector"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.photo",
+          "text": "Shot most of the photography for agency publications including budget books and annual reports, coordinating content across department heads and executive leadership through multiple review cycles.",
+          "tags": [
+            "photography",
+            "publications",
+            "collaboration"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.gala",
+          "text": "Led design and production for the annual General Assembly gala, including multimedia content, a bespoke printed booklet, email registration campaigns, sponsor materials, and event signage.",
+          "tags": [
+            "events",
+            "design",
+            "print",
+            "email",
+            "marketing"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.gala2",
+          "text": "Collaborated with the clerk to design, schedule, and send an annual Constant Contact email campaign promoting the General Assembly gala and driving registration among elected officials and contractors. The campaign linked to a landing page that processed payments and collected dinner orders.",
+          "tags": [
+            "email",
+            "marketing",
+            "events",
+            "constant-contact"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.hilary",
+          "text": "Created a public-facing landing page and fact sheet to manage media inquiries following Tropical Storm Hilary, developing the messaging and design under a same-day deadline.",
+          "tags": [
+            "crisis-communications",
+            "web",
+            "writing",
+            "deadlines",
+            "public-sector"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.sci",
+          "text": "Translated technical and scientific content on transportation, sustainability, and environmental planning into clear, public-facing language for elected officials and community audiences, including in grant applications for infrastructure projects.",
+          "tags": [
+            "writing",
+            "grants",
+            "technical-communication"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "cvag.social2",
+          "text": "Produced graphics, photography, and event materials for agency social channels.",
+          "tags": [
+            "social-media",
+            "design",
+            "photography"
+          ],
+          "status": "verified"
         }
       ]
     },
@@ -749,6 +952,128 @@
             "best-practices"
           ],
           "text": "Stayed current with industry trends and emerging technologies and implemented best practices in design and branding."
+        },
+        {
+          "id": "ko.tech",
+          "text": "Researched, designed, and implemented tech stacks for the agency and its clients, and evaluated and recommended hardware and software.",
+          "tags": [
+            "it",
+            "systems",
+            "vendors"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.admin",
+          "text": "Administered account licensing, permissions, and troubleshooting for Microsoft 365 and Adobe Creative Cloud, for the agency and on behalf of clients, and coordinated technology vendors and maintained equipment inventory and asset tracking.",
+          "tags": [
+            "it",
+            "m365",
+            "adobe",
+            "administration"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.campaigns",
+          "text": "Led multichannel marketing campaigns for nonprofit and community-facing clients, managing strategy, design, and production across social media, email, paid advertising, and print.",
+          "tags": [
+            "marketing",
+            "campaigns",
+            "nonprofit",
+            "social-media",
+            "email",
+            "paid-ads",
+            "print"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.home",
+          "text": "Delivered full-service branding, signage, wayfinding, and sales marketing for a new home community, from groundbreaking through final sale.",
+          "tags": [
+            "branding",
+            "signage",
+            "wayfinding",
+            "marketing",
+            "real-estate"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.pamus",
+          "text": "Rebuilt Palm Springs Art Museum's email newsletter and produced the YouTube livestream for its Virtual Art Party fundraiser during the pandemic.",
+          "tags": [
+            "nonprofit",
+            "museum",
+            "email",
+            "livestream"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.print2",
+          "text": "Designed brochures, flyers, direct mail pieces, business cards, stationery, trade show banners, booth rollups, branded swag, and sales collateral for nonprofit and community-facing clients, selecting and coordinating print vendors and proofing all work before production.",
+          "tags": [
+            "print",
+            "vendors",
+            "design",
+            "production"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.photo2",
+          "text": "Directed photography and video production, including lifestyle, product, and location shoots, managing scheduling, vendors, and post-production.",
+          "tags": [
+            "photography",
+            "video",
+            "production",
+            "vendors"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.invest",
+          "text": "Created pitch decks and presentations for clients, including client-to-investor and venture capital presentations supporting fundraising and growth initiatives.",
+          "tags": [
+            "presentations",
+            "pitch-decks",
+            "investors",
+            "clients"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.proposals",
+          "text": "Wrote client proposals with itemized scopes, budgets, and payment milestones, and managed project costs against internal budgets.",
+          "tags": [
+            "proposals",
+            "budgets",
+            "clients",
+            "writing"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.docs",
+          "text": "Wrote user manuals and documentation for digital platforms built for clients.",
+          "tags": [
+            "documentation",
+            "writing",
+            "training",
+            "web"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.primary",
+          "text": "Served as primary client contact, presenting creative concepts and refining work based on feedback.",
+          "tags": [
+            "clients",
+            "communication"
+          ],
+          "status": "verified"
         }
       ]
     },
@@ -790,7 +1115,8 @@
             "nonprofit",
             "fundraising"
           ],
-          "text": "Maintained CRM systems used for member and donor communications."
+          "text": "Maintained CRM systems used for member and donor communications.",
+          "group": "ps-crm"
         },
         {
           "id": "ps.events",
@@ -812,7 +1138,8 @@
             "av",
             "fundraising"
           ],
-          "text": "VJ'd the 2014 Meet the Museum White Party launch fundraiser, designing original graphics and collaborating directly with the musical entertainment."
+          "text": "VJ'd the 2014 Meet the Museum White Party launch fundraiser, designing original graphics and collaborating directly with the musical entertainment.",
+          "group": "ps-vj"
         },
         {
           "id": "ps.support",
@@ -823,6 +1150,142 @@
             "it"
           ],
           "text": "Supported staff at all levels up to the Executive Director, using reflective and empathic listening to identify problems and recognize opportunities."
+        },
+        {
+          "id": "ps.team",
+          "text": "Served as one of two IT staffers supporting three physical locations.",
+          "tags": [
+            "it",
+            "infrastructure",
+            "nonprofit"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.backup",
+          "text": "Selected and implemented Veeam for backup and recovery.",
+          "tags": [
+            "it",
+            "backup",
+            "veeam"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.voip",
+          "text": "Planned and rolled out the PBX to VoIP migration, ran cabling, and crimped RJ45 connectors.",
+          "tags": [
+            "it",
+            "voip",
+            "networking",
+            "cabling"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.helpdesk",
+          "text": "Handled onboarding, offboarding, and help-desk ticketing.",
+          "tags": [
+            "it",
+            "help-desk",
+            "onboarding"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.access",
+          "text": "Configured and maintained user access and permissions, network appliances, Cisco Meraki MDM, endpoint protection, network printers, software updates, and startup scripts.",
+          "tags": [
+            "it",
+            "permissions",
+            "endpoint",
+            "networking"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.hyperv",
+          "text": "Migrated all Windows servers from bare metal to Hyper-V virtualization.",
+          "tags": [
+            "it",
+            "servers",
+            "virtualization"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.win7",
+          "text": "Planned, staged, and deployed a mass Windows XP to Windows 7 migration.",
+          "tags": [
+            "it",
+            "migration",
+            "windows"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.cc",
+          "text": "Consolidated museum communications onto Constant Contact, replacing staff practice of sending newsletters and announcements via bulk BCC in Outlook, which had triggered spam filters, bouncebacks, and domain blacklisting. Configured separated lists and role-based permissions for museum and council staff.",
+          "tags": [
+            "email",
+            "constant-contact",
+            "nonprofit",
+            "systems"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.train",
+          "text": "Trained staff across departments on email list management, audience segmentation, and Constant Contact workflows.",
+          "tags": [
+            "training",
+            "email",
+            "constant-contact"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.sop",
+          "text": "Wrote standard operating procedures for digital asset management and internal data workflows.",
+          "tags": [
+            "documentation",
+            "sop",
+            "digital-asset-management"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ps.crm.alt",
+          "text": "Maintained Raiser's Edge CRM for membership and development teams, supporting donor communications and reporting.",
+          "tags": [
+            "crm",
+            "raisers-edge",
+            "nonprofit",
+            "fundraising"
+          ],
+          "group": "ps-crm",
+          "status": "verified"
+        },
+        {
+          "id": "ps.vj.alt",
+          "text": "Created original graphics and performed live VJ visuals for the Meet the Museum annual fundraiser, supporting event branding and donor engagement.",
+          "tags": [
+            "events",
+            "design",
+            "av",
+            "fundraising"
+          ],
+          "group": "ps-vj",
+          "status": "verified"
+        },
+        {
+          "id": "ps.support2",
+          "text": "Provided technical support to all staff, ensuring reliable access to digital assets, cloud systems, and communications platforms.",
+          "tags": [
+            "support",
+            "it"
+          ],
+          "status": "verified"
         }
       ]
     },
@@ -857,6 +1320,16 @@
             "automation"
           ],
           "text": "Created a print-to-online workflow converting the printed course catalog's InDesign source file into appropriately styled HTML web pages."
+        },
+        {
+          "id": "cs.3",
+          "text": "Collaborated with university departments to translate technical and academic content into user-friendly digital layouts.",
+          "tags": [
+            "web",
+            "collaboration",
+            "content"
+          ],
+          "status": "verified"
         }
       ]
     },
@@ -986,7 +1459,7 @@
             "scripting",
             "perl"
           ],
-          "text": "Wrote standard operating procedures for asset management, data entry, and the PERL scripts used to push updates."
+          "text": "Wrote standard operating procedures for content workflows, asset management, data entry, and the PERL scripts used to push updates."
         },
         {
           "id": "ds.db",
@@ -1006,6 +1479,39 @@
             "software"
           ],
           "text": "Trained coworkers on a wide array of software and web applications."
+        },
+        {
+          "id": "ds.reps",
+          "text": "Worked with advertising sales representatives and account managers to turn client requirements and sales objectives into accurate, on-brand deliverables and to coordinate publication schedules and multimedia integration.",
+          "tags": [
+            "collaboration",
+            "sales",
+            "clients"
+          ],
+          "status": "verified"
+        }
+      ]
+    },
+    {
+      "id": "kbcs",
+      "title": "Principal Consultant",
+      "org": "KBCS",
+      "location": "Palm Springs, CA",
+      "start": "2004-04",
+      "end": null,
+      "status": "needs_confirm",
+      "confirm_question": "KBCS (Principal Consultant, April 2004 to present) overlaps your other jobs. Include it on this resume?",
+      "bullets": [
+        {
+          "id": "kbcs.1",
+          "status": "needs_confirm",
+          "tags": [
+            "consulting",
+            "it",
+            "training",
+            "small-business"
+          ],
+          "text": "Provided systems engineering, software training, and operations support to small businesses and individuals without in-house IT, translating complex technical problems into practical, plain-language solutions."
         }
       ]
     },
@@ -1028,6 +1534,15 @@
             "adult-education"
           ],
           "text": "Planned and taught four courses: Introduction to the Internet (Basics and Beyond the Basics) and Digital Photography Editing (Basics and Beyond the Basics)."
+        },
+        {
+          "id": "cod.2",
+          "text": "Designed course materials and activities for a wide range of skill levels and learning styles.",
+          "tags": [
+            "teaching",
+            "curriculum"
+          ],
+          "status": "verified"
         }
       ]
     }
@@ -1264,6 +1779,51 @@
       "id": "sk.ai.tools",
       "name": "AI-assisted workflows for grant writing and proofreading",
       "category": "Emerging tools"
+    },
+    {
+      "id": "sk.dataviz",
+      "name": "Data visualization",
+      "category": "Design"
+    },
+    {
+      "id": "sk.story",
+      "name": "Visual storytelling and information design",
+      "category": "Design"
+    },
+    {
+      "id": "sk.cobrand",
+      "name": "Co-branded and partnership marketing materials",
+      "category": "Design"
+    },
+    {
+      "id": "sk.invest",
+      "name": "Investor and venture capital presentations",
+      "category": "Presentations"
+    },
+    {
+      "id": "sk.exec",
+      "name": "Executive presentations and proposal materials",
+      "category": "Presentations"
+    },
+    {
+      "id": "sk.client",
+      "name": "Client-facing design and sales collaboration",
+      "category": "Business"
+    },
+    {
+      "id": "sk.typing",
+      "name": "Typing 60 wpm and data entry",
+      "category": "Office and collaboration"
+    },
+    {
+      "id": "sk.it",
+      "name": "Hyper-V, Veeam, Cisco Meraki MDM, VoIP, and Windows desktop and server administration",
+      "category": "IT"
+    },
+    {
+      "id": "sk.tms",
+      "name": "The Museum System (TMS) collections database",
+      "category": "IT"
     }
   ],
   "education": [
@@ -1305,12 +1865,15 @@
     "Self-identification survey answers",
     "Details of Kevin's family situation beyond the approved personal line",
     "Expired certifications",
-    "Anything taken from the Hemet, Dodgers, or SB Museum tabs"
+    "Any mention of the Hemet, Dodgers, or SB Museum organizations, or any implication of employment there",
+    "Application-form answers such as salary, start date, work authorization, referrals, and EEO answers"
   ],
   "open_questions": [
-    "What does TPPS stand for? The survey-app bullet uses the abbreviation only.",
+    "What does TPPS stand for, and is the TPPS survey the same one used to shape five years of transportation priorities? They are separate bullets until you say so.",
+    "Desert Sun start: Sep 1999 (Resume Bullet Points) or Jul 1999 (Hemet form)? The profile uses Sep 1999.",
+    "Konsist end: Sep 2021 (three documents) or Oct 2021 (Hemet form)? The profile uses Sep 2021.",
     "The Desert Sun duties: what did you do as webmaster and as archivist? Specifics would strengthen those entries.",
-    "Dropped because they appeared only on the Hemet, Dodgers, or SB Museum tabs: the Konsist new-home-community branding and wayfinding, the Konsist tech-stack and Microsoft 365 administration, the Palm Springs Art Museum Constant Contact migration and IT projects, and the CVAG General Assembly gala and Tropical Storm Hilary pages. Restate any of these in your own words if they should come back.",
-    "Is the SB Museum tab one of the application tabs to leave out? It is treated that way."
+    "KBCS (April 2004 to present): include it on resumes? It is held back until you say.",
+    "The NGO resume's CVAG survey bullet was cut off mid-sentence. How did it end?"
   ]
 }
