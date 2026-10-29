@@ -35,7 +35,21 @@ The model is told every saved answer and must not repeat the question; the app a
 
 Answers always save on the device. To follow you across devices, add a fine-grained GitHub token (repository `resume`, Contents read and write) under **Sync saved answers to GitHub**. Answers are then committed to `data/knowledge.json`. That file is public, like the rest of the repo. Reading works without a token.
 
-Facts that are lasting parts of your history can be promoted into `data/profile.json` by hand or by asking Claude. `knowledge.json` is the app's own file and the profile stays hand-curated.
+## Merging answers into the master library
+
+Saved answers do not stay in a side file. Tap **Merge N saved answers into my library** (on the Questions tab, or under **My library**) and Claude drafts proper edits to `data/profile.json`, the way a chat session would:
+
+- a fact becomes a reworded resume bullet on the right job, with tags
+- a wording choice keeps your pick and drops its alternates
+- a correction changes a role's title, dates, or location; a title that suits some postings becomes a title option
+- a standing instruction becomes a preference; "never include" items are added to the never-include list
+- answered entries disappear from the profile's open questions
+
+You see each change in plain words before anything is saved. Nothing is deleted except the alternates of a wording you chose, and any number or date in a new bullet must appear in your own words, so the app cannot add a figure you did not give. The edit is committed to `data/profile.json` on GitHub (a GitHub token is required, see above), and every change is in the git history if you want to undo it. **Teach the library something** adds a free-text fact or correction straight into the same review.
+
+Merged answers stop acting on their own, because the library now holds them, but their questions are still never asked again.
+
+Because the app commits to the repo, pull before editing the profile by hand.
 
 ## Editing the profile
 

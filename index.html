@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="robots" content="noindex">
   <title>Resume Tailor</title>
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <header class="bar">
@@ -69,6 +69,7 @@
         <div id="p-q" role="tabpanel" aria-labelledby="t-q" hidden>
           <p class="hint">Answers are saved once and never asked again. Saved answers are public if you sync to GitHub.</p>
           <ul id="questions" class="cards"></ul>
+          <button id="merge-banner" type="button" hidden></button>
           <button id="retailor" type="button" class="primary" hidden>Tailor again with my answers</button>
           <h3>Fit to the posting</h3>
           <p id="fit"></p>
@@ -79,8 +80,16 @@
         </div>
       </section>
 
+      <section id="review" class="review" hidden aria-live="polite"></section>
+
       <details class="saved">
-        <summary>Saved answers <span id="saved-count"></span></summary>
+        <summary>My library <span id="pending-count"></span></summary>
+        <p class="hint">Answers you save here are turned into proper entries in your master library, the same way as in a chat: reworded as resume bullets, placed on the right job, with conflicts resolved. You review each change before it is saved.</p>
+        <label for="teach">Teach the library something</label>
+        <textarea id="teach" rows="3" placeholder="A fact, a correction, or a standing preference, in your own words"></textarea>
+        <button id="teach-go" type="button">Add and review</button>
+        <button id="merge" type="button" class="primary">Merge saved answers into my library</button>
+        <h3>Saved answers <span id="saved-count"></span></h3>
         <ul id="saved" class="cards"></ul>
       </details>
 
@@ -105,6 +114,6 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=7"></script>
 </body>
 </html>

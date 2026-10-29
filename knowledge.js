@@ -4,9 +4,11 @@
 // Every entry carries an `at` timestamp. Removing an entry marks it `removed: true` instead of deleting it,
 // so a removal made on one device is not undone when another device syncs.
 
-const COLLECTIONS = ['answered', 'choices', 'facts', 'preferences', 'dismissed'];
+const COLLECTIONS = ['answered', 'choices', 'facts', 'preferences', 'dismissed', 'notes'];
+// Entries that, once merged into the master library, stop acting on their own.
+const PENDING = ['choices', 'facts', 'preferences', 'notes'];
 
-export const emptyKnowledge = () => ({ version: 1, answered: {}, choices: {}, facts: {}, preferences: {}, dismissed: {} });
+export const emptyKnowledge = () => ({ version: 1, answered: {}, choices: {}, facts: {}, preferences: {}, dismissed: {}, notes: {} });
 
 export function normalizeKnowledge(raw) {
   const k = emptyKnowledge();
@@ -21,6 +23,7 @@ export const slug = (text) =>
   String(text || 'question').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'question';
 
 const live = (entries) => Object.entries(entries).filter(([, v]) => v && !v.removed);
+const active = (entries) => live(entries).filter(([, v]) => !v.merged);
 
 // Applies one of Kevin's answers and returns a new knowledge object.
 // question: { topic, kind, text, role_id? }
@@ -42,6 +45,9 @@ export function applyAnswer(knowledge, question, answer, now = new Date()) {
     const id = `p.${topic}.${stamp}`;
     k.preferences[id] = { id, topic, text: answer.text.trim(), at };
     k.answered[topic] = { question: question.text, answer: answer.text.trim(), at };
+  } else if (answer.action === 'note') {
+    const id = `n.${stamp}`;
+    k.notes[id] = { id, text: answer.text.trim(), at };
   } else if (answer.action === 'dismiss') {
     k.dismissed[topic] = { at };
   } else {
@@ -93,13 +99,13 @@ export function filterQuestions(questions, knowledge, groupOf = () => null) {
 
 // Chosen wording per bullet group: { group: bullet_id }.
 export const chosenWordings = (knowledge) =>
-  Object.fromEntries(live(normalizeKnowledge(knowledge).choices).map(([group, v]) => [group, v.bullet_id]));
+  Object.fromEntries(active(normalizeKnowledge(knowledge).choices).map(([group, v]) => [group, v.bullet_id]));
 
 // Facts Kevin supplied, as profile-style bullets. Facts tied to a role attach to it; the rest are general.
 export function learnedFacts(knowledge, roleIds) {
   const byRole = {};
   const general = [];
-  for (const [, f] of live(normalizeKnowledge(knowledge).facts)) {
+  for (const [, f] of active(normalizeKnowledge(knowledge).facts)) {
     const bullet = { id: f.id, status: 'verified', tags: ['learned'], text: f.text };
     if (f.role_id && roleIds.has(f.role_id)) (byRole[f.role_id] ||= []).push(bullet);
     else general.push(bullet);
@@ -113,9 +119,35 @@ export function knowledgeForPrompt(knowledge) {
   return {
     answered: live(k.answered).map(([topic, v]) => ({ topic, question: v.question, answer: v.answer })),
     dismissed_topics: live(k.dismissed).map(([topic]) => topic),
-    preferences: live(k.preferences).map(([, v]) => v.text)
+    preferences: [...active(k.preferences), ...active(k.notes)].map(([, v]) => v.text)
   };
 }
 
 export const hasEntries = (knowledge) => COLLECTIONS.some((n) => live(normalizeKnowledge(knowledge)[n]).length > 0);
-export const liveEntries = (knowledge, collection) => live(normalizeKnowledge(knowledge)[collection]);
+export const liveEntries = (knowledge, collection) => active(normalizeKnowledge(knowledge)[collection]);
+
+// Answers waiting to be merged into the master library.
+export function pendingItems(knowledge) {
+  const k = normalizeKnowledge(knowledge);
+  const items = [];
+  for (const collection of PENDING) {
+    for (const [key, v] of active(k[collection])) {
+      const base = { ref: `${collection}:${key}`, collection, key };
+      if (collection === 'choices') {
+        items.push({ ...base, kind: 'choice', group: key, keep_id: v.bullet_id, question: k.answered[v.topic]?.question || '' });
+      } else {
+        items.push({ ...base, kind: collection === 'facts' ? 'fact' : collection === 'preferences' ? 'preference' : 'note', role_id: v.role_id || null, text: v.text, question: k.answered[v.topic]?.question || '' });
+      }
+    }
+  }
+  return items;
+}
+
+// Marks items as merged into the library. They stop acting on their own and drop out of the pending list,
+// but the answered topics stay, so the questions are still never asked again.
+export function markMerged(knowledge, items, now = new Date()) {
+  const k = normalizeKnowledge(structuredClone(knowledge));
+  const at = now.toISOString();
+  for (const { collection, key } of items) if (k[collection]?.[key]) k[collection][key] = { ...k[collection][key], merged: true, at };
+  return k;
+}

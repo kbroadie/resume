@@ -108,3 +108,9 @@ summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; al
 .cards li span:first-child { overflow-wrap: anywhere; }
 @media (min-width: 40rem) { .row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media print { .saved, .sync { display: none !important; } }
+
+.review { margin-top: 1rem; border: 1px solid var(--accent); border-radius: 8px; padding: 12px; background: var(--card); }
+.review h3 { margin-top: 0; }
+.cards li.skip { color: var(--muted); }
+#merge-banner { width: 100%; margin-top: .75rem; border-color: var(--accent); }
+#teach-go, #merge { width: 100%; margin-top: .5rem; }

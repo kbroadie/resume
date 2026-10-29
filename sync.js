@@ -1,6 +1,6 @@
 // Saves Kevin's knowledge file to the GitHub repo so it follows him across devices.
 // Needs a fine-grained token with Contents read/write on this repository; reading works without one.
-import { mergeKnowledge, normalizeKnowledge } from './knowledge.js?v=6';
+import { mergeKnowledge, normalizeKnowledge } from './knowledge.js?v=7';
 
 export const REPO = 'kbroadie/resume';
 export const PATH = 'data/knowledge.json';
@@ -27,25 +27,48 @@ export function decodeContent(b64) {
 const stable = (value) => JSON.stringify(value, (_, v) =>
   v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1))) : v);
 
-export async function pull(token, fetchImpl = fetch) {
-  const res = await fetchImpl(`${API}/repos/${REPO}/contents/${PATH}?ref=main`, { headers: ghHeaders(token), cache: 'no-store' });
-  if (res.status === 404) return { knowledge: null, sha: null };
-  if (!res.ok) throw new Error(`GitHub said HTTP ${res.status} while reading saved answers.`);
+export const PROFILE_PATH = 'data/profile.json';
+
+// Reads a JSON file from the repo. Returns { data, sha }; data is null when the file does not exist.
+export async function pullFile(path, token, fetchImpl = fetch) {
+  const res = await fetchImpl(`${API}/repos/${REPO}/contents/${path}?ref=main`, { headers: ghHeaders(token), cache: 'no-store' });
+  if (res.status === 404) return { data: null, sha: null };
+  if (!res.ok) throw new Error(`GitHub said HTTP ${res.status} while reading ${path}.`);
   const body = await res.json();
-  return { knowledge: normalizeKnowledge(decodeContent(body.content)), sha: body.sha };
+  return { data: decodeContent(body.content), sha: body.sha };
+}
+
+export function putFile(path, data, { token, sha, message, fetchImpl = fetch }) {
+  return fetchImpl(`${API}/repos/${REPO}/contents/${path}`, {
+    method: 'PUT',
+    headers: { ...ghHeaders(token), 'content-type': 'application/json' },
+    body: JSON.stringify({ message, content: encodeContent(data), branch: 'main', ...(sha ? { sha } : {}) })
+  });
+}
+
+export async function pull(token, fetchImpl = fetch) {
+  const { data, sha } = await pullFile(PATH, token, fetchImpl);
+  return { knowledge: data ? normalizeKnowledge(data) : null, sha };
 }
 
 async function put(knowledge, token, sha, fetchImpl) {
-  return fetchImpl(`${API}/repos/${REPO}/contents/${PATH}`, {
-    method: 'PUT',
-    headers: { ...ghHeaders(token), 'content-type': 'application/json' },
-    body: JSON.stringify({
-      message: 'Update saved answers',
-      content: encodeContent(knowledge),
-      branch: 'main',
-      ...(sha ? { sha } : {})
-    })
-  });
+  return putFile(PATH, knowledge, { token, sha, message: 'Update saved answers', fetchImpl });
+}
+
+// Reads the latest profile from GitHub, lets `edit(profile)` return { profile, ...rest }, and saves it.
+// If someone saved in between, reads again and re-applies the edit once. Returns the edit's result.
+export async function updateLibrary(token, edit, message, fetchImpl = fetch) {
+  if (!token) throw new Error('Merging into the library needs a GitHub token (see "Sync saved answers to GitHub").');
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { data, sha } = await pullFile(PROFILE_PATH, token, fetchImpl);
+    if (!data) throw new Error('Could not find data/profile.json on GitHub.');
+    const result = edit(data);
+    const res = await putFile(PROFILE_PATH, result.profile, { token, sha, message, fetchImpl });
+    if (res.ok) return result;
+    if (res.status === 401 || res.status === 403) throw new Error('GitHub did not accept the token (it needs Contents read and write on this repository).');
+    if (res.status !== 409 && res.status !== 422) throw new Error(`GitHub said HTTP ${res.status} while saving the library.`);
+  }
+  throw new Error('The library changed while saving. Nothing was lost; try the merge again.');
 }
 
 // Merges local with what is on GitHub and, when a token is given and something changed, writes it back.

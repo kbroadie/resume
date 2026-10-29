@@ -1,5 +1,5 @@
 // Pure functions shared by the browser app and the tests. No DOM access here.
-import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=6';
+import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=7';
 
 export const MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5 (default)' },
@@ -179,6 +179,8 @@ export const RESUME_TOOL = {
   }
 };
 
+const withProfilePreferences = (k, profile) => ({ ...k, preferences: [...(profile.preferences || []), ...k.preferences] });
+
 export function buildRequest(profile, { posting, notes = '', includePortfolio = false, includePersonalLine = true, shortTitles = false, knowledge = null, now = new Date() }) {
   const { usable, heldBack } = splitProfile(profile, { includePersonalLine, knowledge });
   const facts = {
@@ -193,7 +195,7 @@ export function buildRequest(profile, { posting, notes = '', includePortfolio = 
     '<FACTS>', JSON.stringify(facts), '</FACTS>',
     '<NEVER_INCLUDE>', JSON.stringify(profile.never_include), '</NEVER_INCLUDE>',
     '<HELD_BACK>', JSON.stringify(heldBack), '</HELD_BACK>',
-    '<KNOWLEDGE>', JSON.stringify(knowledgeForPrompt(knowledge)), '</KNOWLEDGE>',
+    '<KNOWLEDGE>', JSON.stringify(withProfilePreferences(knowledgeForPrompt(knowledge), profile)), '</KNOWLEDGE>',
     '<PROFILE>', JSON.stringify(usable), '</PROFILE>'
   ].join('\n');
   return { system: SYSTEM_PROMPT, tools: [RESUME_TOOL], tool_choice: { type: 'auto' }, user };

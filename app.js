@@ -1,6 +1,7 @@
-import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup } from './lib.js?v=6';
-import { emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, mergeKnowledge, filterQuestions, liveEntries } from './knowledge.js?v=6';
-import { syncKnowledge } from './sync.js?v=6';
+import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup } from './lib.js?v=7';
+import { emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged } from './knowledge.js?v=7';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=7';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=7';
 
 const API = 'https://api.anthropic.com/v1';
 const KEY_STORE = 'resume-tailor-key';
@@ -66,9 +67,17 @@ function show(signedIn) {
 }
 
 async function loadProfile() {
-  const res = await fetch('data/profile.json', { cache: 'no-cache' });
-  if (!res.ok) throw new Error('Could not load data/profile.json');
-  profile = await res.json();
+  profile = null;
+  const token = readStore(TOKEN_STORE);
+  if (token) {
+    // GitHub Pages can lag a minute behind a merge, so read the latest straight from the repo.
+    try { profile = (await pullFile(PROFILE_PATH, token)).data; } catch { profile = null; }
+  }
+  if (!profile) {
+    const res = await fetch('data/profile.json', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('Could not load data/profile.json');
+    profile = await res.json();
+  }
   groupOf = groupLookup(profile);
   $('location').innerHTML = '<option value="" disabled>Choose a location</option>' +
     profile.contact.locations.map((l) => `<option value="${l.id}">${escapeHtml(l.label)}</option>`).join('');
@@ -122,12 +131,13 @@ function describeEntry(collection, e) {
   if (collection === 'facts') return `Fact${e.role_id ? ` (${e.role_id})` : ''}: ${e.text}`;
   if (collection === 'preferences') return `Preference: ${e.text}`;
   if (collection === 'choices') return `Wording chosen: ${e.bullet_id}`;
+  if (collection === 'notes') return `Note: ${e.text}`;
   return `Not asking again: ${e.topic || ''}`;
 }
 
 function renderSaved() {
   const rows = [];
-  for (const collection of ['facts', 'preferences', 'choices', 'dismissed']) {
+  for (const collection of ['facts', 'preferences', 'choices', 'notes', 'dismissed']) {
     for (const [key, e] of liveEntries(knowledge, collection)) {
       const entry = collection === 'dismissed' ? { ...e, topic: key } : e;
       rows.push(`<li><span>${escapeHtml(describeEntry(collection, entry))}</span> <button type="button" class="link" data-collection="${collection}" data-key="${escapeHtml(key)}">Remove</button></li>`);
@@ -135,6 +145,7 @@ function renderSaved() {
   }
   $('saved').innerHTML = rows.join('') || '<li>Nothing saved yet. Answer a question and it will appear here.</li>';
   $('saved-count').textContent = rows.length ? `(${rows.length})` : '';
+  renderPendingCounts();
 }
 
 function renderQuestions() {
@@ -174,6 +185,86 @@ async function answerQuestion(event) {
   await persist();
 }
 
+// Library merge: Claude turns saved answers into edits, Kevin approves, then the profile is updated on GitHub.
+let reviewing = null;
+
+function renderPendingCounts() {
+  const n = pendingItems(knowledge).length;
+  $('pending-count').textContent = n ? `(${n} waiting)` : '';
+  $('merge-banner').hidden = n === 0;
+  $('merge-banner').textContent = `Merge ${n} saved answer${n === 1 ? '' : 's'} into my library`;
+  $('merge').disabled = n === 0;
+}
+
+function refreshProfileViews() {
+  groupOf = groupLookup(profile);
+  $('open-questions').innerHTML = profile.open_questions.map((q) => `<li>${escapeHtml(q)}</li>`).join('') || '<li>Nothing waiting.</li>';
+}
+
+async function startMerge() {
+  const pending = pendingItems(knowledge);
+  const box = $('review');
+  if (!pending.length) return;
+  box.hidden = false;
+  box.innerHTML = '<p role="status">Claude is drafting library changes...</p>';
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try {
+    const input = await askClaude(buildLibrarianRequest(profile, pending), 'propose_library_changes');
+    const evidence = pending.map((p) => p.text || '').join('\n');
+    const preview = applyPatch(profile, input.ops, evidence);
+    reviewing = { pending, ops: input.ops, evidence, summary: input.summary, preview };
+    const lines = preview.applied.map((a) => `<li>${escapeHtml(describeOp(a.op, profile))}</li>`).join('');
+    const skipped = preview.skipped.map((x) => `<li class="skip">Skipped: ${escapeHtml(describeOp(x.op, profile))} (${escapeHtml(x.why)})</li>`).join('');
+    const clarify = (input.clarify || []).map((c) => `<li class="skip">Needs your input: ${escapeHtml(c)}</li>`).join('');
+    box.innerHTML = `<h3>Proposed library changes</h3><p>${escapeHtml(input.summary || '')}</p>
+      <ul class="cards">${lines || '<li>No new entries. Everything is already in the library.</li>'}${skipped}${clarify}</ul>
+      <div class="row"><button type="button" id="approve" class="primary">${preview.applied.length ? 'Approve and merge' : 'Mark as handled'}</button>
+      <button type="button" id="cancel-merge">Cancel</button></div><p id="review-msg" class="hint" role="status"></p>`;
+    $('approve').addEventListener('click', approveMerge);
+    $('cancel-merge').addEventListener('click', () => { box.hidden = true; reviewing = null; });
+  } catch (err) {
+    box.innerHTML = `<p class="msg" role="alert">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+async function approveMerge() {
+  const { pending, ops, evidence, preview } = reviewing;
+  const msg = $('review-msg');
+  $('approve').disabled = true;
+  try {
+    if (preview.applied.length) {
+      const token = readStore(TOKEN_STORE);
+      if (!token) {
+        const text = preview.applied.map((a) => describeOp(a.op, profile)).join('\n');
+        try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
+        msg.textContent = 'No GitHub token, so nothing was saved. The changes were copied; paste them into the Claude Code chat, or add a token under Sync and try again.';
+        $('approve').disabled = false;
+        return;
+      }
+      msg.textContent = 'Saving to your library...';
+      const done = await updateLibrary(token, (remote) => applyPatch(remote, ops, evidence), 'Merge answers into the library');
+      profile = done.profile;
+      refreshProfileViews();
+    }
+    knowledge = markMerged(knowledge, pending);
+    await persist();
+    $('review').innerHTML = `<p role="status">Merged. Your library is up to date, and those questions will not be asked again.</p>`;
+    reviewing = null;
+  } catch (err) {
+    msg.textContent = err.message;
+    $('approve').disabled = false;
+  }
+}
+
+async function teach() {
+  const text = $('teach').value.trim();
+  if (!text) return;
+  knowledge = applyAnswer(knowledge, { text }, { action: 'note', text });
+  $('teach').value = '';
+  await persist();
+  await startMerge();
+}
+
 function setTab(name) {
   for (const [tab, panel] of [['t-resume', 'p-resume'], ['t-q', 'p-q'], ['t-checks', 'p-checks']]) {
     const on = tab === name;
@@ -201,6 +292,31 @@ function renderResult(result, issues, opts) {
   $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// Calls Claude with one tool and returns that tool's input. Newer models reject a forced tool call,
+// so the model chooses to call it; if it replies in text instead, ask once more.
+async function askClaude({ system, tools, tool_choice, user }, toolName) {
+  const messages = [{ role: 'user', content: user }];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const res = await fetch(`${API}/messages`, {
+      method: 'POST',
+      headers: headers(currentKey()),
+      body: JSON.stringify({ model: $('model').value, max_tokens: 8000, system, tools, tool_choice, messages })
+    });
+    if (res.status === 401) { clearKey(); show(false); throw new Error('Your key was rejected. Sign in again.'); }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error?.message || `Request failed (HTTP ${res.status}).`);
+    }
+    const data = await res.json();
+    const block = (data.content || []).find((b) => b.type === 'tool_use' && b.name === toolName);
+    if (block) return block.input;
+    if (data.stop_reason === 'max_tokens') throw new Error('The response was cut off. Try again, or trim the posting.');
+    messages.push({ role: 'assistant', content: data.content || [{ type: 'text', text: '(no content)' }] });
+    messages.push({ role: 'user', content: `Call ${toolName} now.` });
+  }
+  throw new Error('The model did not respond with the expected result. Try again.');
+}
+
 async function generate(event) {
   event.preventDefault();
   const msg = $('gen-msg');
@@ -211,38 +327,8 @@ async function generate(event) {
   btn.disabled = true;
   msg.textContent = 'Tailoring. This takes up to a minute.';
   try {
-    const messages = [{ role: 'user', content: req.user }];
-    let block = null;
-    // Newer models reject a forced tool call, so the model chooses to call it. If it replies in text
-    // instead, ask once more.
-    for (let attempt = 0; attempt < 2 && !block; attempt += 1) {
-      const res = await fetch(`${API}/messages`, {
-        method: 'POST',
-        headers: headers(currentKey()),
-        body: JSON.stringify({
-          model: $('model').value,
-          max_tokens: 8000,
-          system: req.system,
-          tools: req.tools,
-          tool_choice: req.tool_choice,
-          messages
-        })
-      });
-      if (res.status === 401) { clearKey(); show(false); throw new Error('Your key was rejected. Sign in again.'); }
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error?.message || `Request failed (HTTP ${res.status}).`);
-      }
-      const data = await res.json();
-      block = (data.content || []).find((b) => b.type === 'tool_use' && b.name === 'submit_resume');
-      if (!block) {
-        if (data.stop_reason === 'max_tokens') throw new Error('The response was cut off. Try again, or trim the posting.');
-        messages.push({ role: 'assistant', content: data.content || [{ type: 'text', text: '(no content)' }] });
-        messages.push({ role: 'user', content: 'Call submit_resume now with the completed resume.' });
-      }
-    }
-    if (!block) throw new Error('The model did not return a resume. Try again.');
-    renderResult(block.input, validateResult(block.input, profile, { ...opts, knowledge }), opts);
+    const input = await askClaude(req, 'submit_resume');
+    renderResult(input, validateResult(input, profile, { ...opts, knowledge }), opts);
     msg.textContent = '';
   } catch (err) {
     msg.textContent = err.message;
@@ -272,9 +358,13 @@ function download() {
 async function init() {
   $('model').innerHTML = MODELS.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('');
   try { await loadProfile(); } catch (err) { $('login-msg').textContent = err.message; }
+  if (profile) refreshProfileViews();
   await pullKnowledge();
   $('questions').addEventListener('click', answerQuestion);
   $('retailor').addEventListener('click', () => $('gen').requestSubmit());
+  $('merge').addEventListener('click', startMerge);
+  $('merge-banner').addEventListener('click', startMerge);
+  $('teach-go').addEventListener('click', teach);
   $('saved').addEventListener('click', async (e) => {
     const b = e.target.closest('button[data-collection]');
     if (!b) return;
