@@ -144,3 +144,9 @@ test('html output escapes markup', () => {
   r.experience[0].bullets[0].text = '<script>alert(1)</script>';
   assert.ok(!renderHtml(buildDoc(r, profile)).includes('<script>'));
 });
+
+test('sign-in check uses a CORS-enabled endpoint', () => {
+  const src = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(src.includes('/messages/count_tokens'));
+  assert.ok(!src.includes("${API}/models"));
+});

@@ -32,9 +32,17 @@ const clearKey = () => {
 const currentKey = () => getKey() || memoryKey;
 
 async function checkKey(key) {
-  const res = await fetch(`${API}/models?limit=1`, { headers: headers(key) });
+  // count_tokens is free and, unlike GET /v1/models, answers browser (CORS) requests.
+  const res = await fetch(`${API}/messages/count_tokens`, {
+    method: 'POST',
+    headers: headers(key),
+    body: JSON.stringify({ model: MODELS[0].id, messages: [{ role: 'user', content: 'hi' }] })
+  });
   if (res.status === 401 || res.status === 403) throw new Error('That key was not accepted.');
-  if (!res.ok) throw new Error(`Could not verify the key (HTTP ${res.status}).`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error?.message || `Could not verify the key (HTTP ${res.status}).`);
+  }
 }
 
 function show(signedIn) {
@@ -156,7 +164,9 @@ async function init() {
       msg.textContent = '';
       show(true);
     } catch (err) {
-      msg.textContent = err.message;
+      msg.textContent = err instanceof TypeError
+        ? 'Could not reach Anthropic. Check your connection, VPN, or content blocker, then try again.'
+        : err.message;
     }
   });
   $('signout').addEventListener('click', () => { clearKey(); show(false); $('out').hidden = true; });
