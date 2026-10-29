@@ -213,8 +213,8 @@
             "public-sector",
             "transportation"
           ],
-          "text": "Built the pairwise comparison survey that CVAG used for its new TPPS.",
-          "note": "TPPS is Kevin's abbreviation. Spell it out only if he supplies the full name."
+          "text": "Built the pairwise comparison survey app that CVAG used for its Transportation Project Prioritization Survey (TPPS).",
+          "note": "Kevin: TPPS is the CVAG Transportation Project Prioritization Survey. Use the full name once, then TPPS."
         },
         {
           "id": "cvag.survey3",
@@ -1375,15 +1375,42 @@
       "status": "verified",
       "bullets": [
         {
-          "id": "ds.roles",
+          "id": "ds.web",
           "status": "verified",
           "tags": [
-            "design",
             "web",
-            "archive"
+            "content",
+            "design",
+            "landing-pages",
+            "news",
+            "entertainment"
           ],
-          "text": "Worked as an online ad and creative designer, webmaster, and archivist.",
-          "note": "Kevin's description of the duties. Ask for specifics on the webmaster and archivist work."
+          "text": "Updated and managed all content for the news and entertainment websites, including custom graphics and landing pages."
+        },
+        {
+          "id": "ds.classified",
+          "status": "verified",
+          "tags": [
+            "classifieds",
+            "photo-editing",
+            "accuracy",
+            "sales",
+            "web"
+          ],
+          "text": "Updated and maintained classified listings on Home Finder and cars.com, scanning and color-correcting photos, fact-checking and correcting listing information, and notifying ad reps of the corrections.",
+          "note": "Kevin wrote 'home finder'. Confirm the exact site name styling."
+        },
+        {
+          "id": "ds.archive",
+          "status": "verified",
+          "tags": [
+            "archive",
+            "database",
+            "accuracy",
+            "classification",
+            "news"
+          ],
+          "text": "Served as archivist, manually checking the local story database against the printed dailies and weeklies using standardized classification methods."
         },
         {
           "id": "ds.ads",
@@ -1869,11 +1896,12 @@
     "Application-form answers such as salary, start date, work authorization, referrals, and EEO answers"
   ],
   "open_questions": [
-    "What does TPPS stand for, and is the TPPS survey the same one used to shape five years of transportation priorities? They are separate bullets until you say so.",
+    "Is the TPPS survey the same survey that shaped five years of transportation investment priorities? The two bullets stay separate until you confirm.",
     "Desert Sun start: Sep 1999 (Resume Bullet Points) or Jul 1999 (Hemet form)? The profile uses Sep 1999.",
     "Konsist end: Sep 2021 (three documents) or Oct 2021 (Hemet form)? The profile uses Sep 2021.",
-    "The Desert Sun duties: what did you do as webmaster and as archivist? Specifics would strengthen those entries.",
     "KBCS (April 2004 to present): include it on resumes? It is held back until you say.",
-    "The NGO resume's CVAG survey bullet was cut off mid-sentence. How did it end?"
+    "The NGO resume's CVAG survey bullet was cut off mid-sentence. How did it end?",
+    "Home Finder: is that the exact name and styling of the site?",
+    "MESA membership (College of the Desert) appears in your SB Museum answers. Should it be available for resumes?"
   ]
 }

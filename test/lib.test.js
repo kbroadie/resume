@@ -40,8 +40,8 @@ test('held-back roles and bullets never reach the model as usable', () => {
   p.roles.find((r) => r.id === 'ds').bullets[0].status = 'needs_confirm';
   const { usable, heldBack } = splitProfile(p);
   assert.ok(!usable.roles.some((r) => r.id === 'cod'));
-  assert.ok(!usable.roles.find((r) => r.id === 'ds').bullets.some((b) => b.id === 'ds.roles'));
-  assert.ok(heldBack.some((h) => h.id === 'cod') && heldBack.some((h) => h.id === 'ds.roles'));
+  assert.ok(!usable.roles.find((r) => r.id === 'ds').bullets.some((b) => b.id === 'ds.web'));
+  assert.ok(heldBack.some((h) => h.id === 'cod') && heldBack.some((h) => h.id === 'ds.web'));
   const req = buildRequest(p, { posting: 'Designer wanted', now });
   assert.ok(!req.user.split('<PROFILE>')[1].includes('"cod"'));
 });
