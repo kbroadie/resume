@@ -148,5 +148,6 @@ test('html output escapes markup', () => {
 test('sign-in check uses a CORS-enabled endpoint', () => {
   const src = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.ok(src.includes('/messages/count_tokens'));
-  assert.ok(!src.includes("${API}/models"));
+  assert.ok(!src.includes('${API}/models'));
+  assert.ok(src.includes('Anthropic did not accept that key'));
 });

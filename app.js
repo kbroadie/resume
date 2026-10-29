@@ -38,11 +38,18 @@ async function checkKey(key) {
     headers: headers(key),
     body: JSON.stringify({ model: MODELS[0].id, messages: [{ role: 'user', content: 'hi' }] })
   });
-  if (res.status === 401 || res.status === 403) throw new Error('That key was not accepted.');
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error?.message || `Could not verify the key (HTTP ${res.status}).`);
+    const why = body.error?.message || 'no reason given';
+    throw new Error(res.status === 401 || res.status === 403
+      ? `Anthropic did not accept that key: ${why} (HTTP ${res.status}).`
+      : `Could not verify the key: ${why} (HTTP ${res.status}).`);
   }
+}
+
+// Phones often add spaces, line breaks, invisible characters, or quotes when pasting.
+export function cleanKey(raw) {
+  return raw.replace(/[\s\u200B-\u200D\uFEFF]/g, '').replace(/^["'`]+|["'`]+$/g, '');
 }
 
 function show(signedIn) {
@@ -154,8 +161,12 @@ async function init() {
 
   $('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const key = $('key').value.trim();
+    const key = cleanKey($('key').value);
     const msg = $('login-msg');
+    if (!key.startsWith('sk-ant-')) {
+      msg.textContent = `That does not look like an Anthropic API key. Keys start with "sk-ant-" (yours starts with "${key.slice(0, 7)}", ${key.length} characters). Copy the full key from the Anthropic Console; it is shown only once when created.`;
+      return;
+    }
     msg.textContent = 'Checking...';
     try {
       await checkKey(key);
@@ -168,6 +179,11 @@ async function init() {
         ? 'Could not reach Anthropic. Check your connection, VPN, or content blocker, then try again.'
         : err.message;
     }
+  });
+  $('showkey').addEventListener('click', () => {
+    const show = $('key').type === 'password';
+    $('key').type = show ? 'text' : 'password';
+    $('showkey').textContent = show ? 'Hide key' : 'Show key';
   });
   $('signout').addEventListener('click', () => { clearKey(); show(false); $('out').hidden = true; });
   $('gen').addEventListener('submit', generate);
