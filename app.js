@@ -1,4 +1,6 @@
-import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml } from './lib.js?v=5';
+import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup } from './lib.js?v=6';
+import { emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, mergeKnowledge, filterQuestions, liveEntries } from './knowledge.js?v=6';
+import { syncKnowledge } from './sync.js?v=6';
 
 const API = 'https://api.anthropic.com/v1';
 const KEY_STORE = 'resume-tailor-key';
@@ -6,6 +8,11 @@ const $ = (id) => document.getElementById(id);
 
 let profile = null;
 let lastText = '';
+let knowledge = emptyKnowledge();
+let groupOf = () => null;
+let shownQuestions = [];
+const KNOWLEDGE_STORE = 'resume-tailor-knowledge';
+const TOKEN_STORE = 'resume-tailor-github-token';
 
 const headers = (key) => ({
   'content-type': 'application/json',
@@ -62,12 +69,109 @@ async function loadProfile() {
   const res = await fetch('data/profile.json', { cache: 'no-cache' });
   if (!res.ok) throw new Error('Could not load data/profile.json');
   profile = await res.json();
+  groupOf = groupLookup(profile);
   $('location').innerHTML = '<option value="" disabled>Choose a location</option>' +
     profile.contact.locations.map((l) => `<option value="${l.id}">${escapeHtml(l.label)}</option>`).join('');
   let saved = '';
   try { saved = localStorage.getItem('resume-tailor-location') || ''; } catch { /* ignore */ }
   $('location').value = profile.contact.locations.some((l) => l.id === saved) ? saved : '';
   $('open-questions').innerHTML = profile.open_questions.map((q) => `<li>${escapeHtml(q)}</li>`).join('');
+}
+
+const readStore = (name) => { try { return sessionStorage.getItem(name) || localStorage.getItem(name) || ''; } catch { return ''; } };
+
+function loadLocalKnowledge() {
+  try { return normalizeKnowledge(JSON.parse(localStorage.getItem(KNOWLEDGE_STORE) || 'null')); } catch { return emptyKnowledge(); }
+}
+
+function setSyncStatus(text) { $('sync-status').textContent = text; }
+
+// Saves on this device, then to GitHub when a token is set.
+async function persist() {
+  try { localStorage.setItem(KNOWLEDGE_STORE, JSON.stringify(knowledge)); } catch { /* storage blocked */ }
+  renderSaved();
+  const token = readStore(TOKEN_STORE);
+  if (!token) { setSyncStatus('Saved on this device only. Add a GitHub token below to sync across devices.'); return; }
+  setSyncStatus('Saving to GitHub...');
+  try {
+    const out = await syncKnowledge(knowledge, token);
+    knowledge = out.knowledge;
+    try { localStorage.setItem(KNOWLEDGE_STORE, JSON.stringify(knowledge)); } catch { /* ignore */ }
+    renderSaved();
+    setSyncStatus(out.pushed ? 'Saved to GitHub.' : 'Up to date with GitHub.');
+  } catch (err) {
+    setSyncStatus(`${err.message} Kept on this device.`);
+  }
+}
+
+// On load: merge what is on GitHub (readable without a token) into this device.
+async function pullKnowledge() {
+  knowledge = loadLocalKnowledge();
+  try {
+    const out = await syncKnowledge(knowledge, '');
+    knowledge = out.knowledge;
+    try { localStorage.setItem(KNOWLEDGE_STORE, JSON.stringify(knowledge)); } catch { /* ignore */ }
+    setSyncStatus(readStore(TOKEN_STORE) ? 'Token set. Answers sync to GitHub.' : 'Saved on this device only. Add a GitHub token below to sync across devices.');
+  } catch {
+    setSyncStatus('Could not read saved answers from GitHub. Using this device only.');
+  }
+  renderSaved();
+}
+
+function describeEntry(collection, e) {
+  if (collection === 'facts') return `Fact${e.role_id ? ` (${e.role_id})` : ''}: ${e.text}`;
+  if (collection === 'preferences') return `Preference: ${e.text}`;
+  if (collection === 'choices') return `Wording chosen: ${e.bullet_id}`;
+  return `Not asking again: ${e.topic || ''}`;
+}
+
+function renderSaved() {
+  const rows = [];
+  for (const collection of ['facts', 'preferences', 'choices', 'dismissed']) {
+    for (const [key, e] of liveEntries(knowledge, collection)) {
+      const entry = collection === 'dismissed' ? { ...e, topic: key } : e;
+      rows.push(`<li><span>${escapeHtml(describeEntry(collection, entry))}</span> <button type="button" class="link" data-collection="${collection}" data-key="${escapeHtml(key)}">Remove</button></li>`);
+    }
+  }
+  $('saved').innerHTML = rows.join('') || '<li>Nothing saved yet. Answer a question and it will appear here.</li>';
+  $('saved-count').textContent = rows.length ? `(${rows.length})` : '';
+}
+
+function renderQuestions() {
+  $('questions').innerHTML = shownQuestions.map((q, i) => {
+    const options = q.kind === 'conflict' && q.options?.length
+      ? `<div class="row">${q.options.map((o, j) => `<button type="button" data-act="choice" data-j="${j}">Use: ${escapeHtml(o.label)}</button>`).join('')}</div>`
+      : `<textarea rows="3" aria-label="Your answer" placeholder="Your answer, in your own words"></textarea>
+         <div class="row"><button type="button" data-act="fact">Save as a fact</button><button type="button" data-act="preference">Save as a preference</button></div>`;
+    return `<li class="qcard" data-i="${i}"><span class="tag">${escapeHtml(q.kind)}</span><p>${escapeHtml(q.text)}</p>${options}
+      <button type="button" class="link" data-act="dismiss">Don't ask again</button><p class="saved-msg" role="status"></p></li>`;
+  }).join('') || '<li>No questions this time.</li>';
+  $('qcount').textContent = shownQuestions.length ? `(${shownQuestions.length})` : '';
+  $('retailor').hidden = !shownQuestions.length;
+}
+
+async function answerQuestion(event) {
+  const btn = event.target.closest('button[data-act]');
+  if (!btn) return;
+  const card = btn.closest('.qcard');
+  const q = shownQuestions[Number(card.dataset.i)];
+  const act = btn.dataset.act;
+  let answer;
+  if (act === 'choice') {
+    const o = q.options[Number(btn.dataset.j)];
+    const group = groupOf(o.bullet_id);
+    answer = group ? { action: 'choice', group, bullet_id: o.bullet_id, label: o.label } : { action: 'preference', text: `${q.text} Use: ${o.label}` };
+  } else if (act === 'dismiss') {
+    answer = { action: 'dismiss' };
+  } else {
+    const text = card.querySelector('textarea').value.trim();
+    if (!text) { card.querySelector('.saved-msg').textContent = 'Type your answer first.'; return; }
+    answer = { action: act, text };
+  }
+  knowledge = applyAnswer(knowledge, q, answer);
+  for (const el of card.querySelectorAll('button, textarea')) el.disabled = true;
+  card.querySelector('.saved-msg').textContent = 'Saved. It will not be asked again.';
+  await persist();
 }
 
 function setTab(name) {
@@ -79,13 +183,12 @@ function setTab(name) {
 }
 
 function renderResult(result, issues, opts) {
-  const doc = buildDoc(result, profile, opts);
+  const doc = buildDoc(result, profile, { ...opts, knowledge });
   lastText = renderText(doc);
   $('resume').innerHTML = renderHtml(doc);
 
-  $('questions').innerHTML = (result.questions || [])
-    .map((q) => `<li><span class="tag">${escapeHtml(q.kind)}</span>${escapeHtml(q.text)}</li>`).join('') || '<li>No questions this time.</li>';
-  $('qcount').textContent = result.questions?.length ? `(${result.questions.length})` : '';
+  shownQuestions = filterQuestions(result.questions, knowledge, groupOf);
+  renderQuestions();
   $('fit').textContent = result.fit_notes || '';
 
   $('checks').innerHTML = issues.length
@@ -104,7 +207,7 @@ async function generate(event) {
   const btn = $('go');
   const opts = { includePortfolio: $('portfolio').checked, includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
   try { localStorage.setItem('resume-tailor-location', opts.locationId); } catch { /* ignore */ }
-  const req = buildRequest(profile, { posting: $('posting').value, notes: $('notes').value, ...opts });
+  const req = buildRequest(profile, { posting: $('posting').value, notes: $('notes').value, knowledge, ...opts });
   btn.disabled = true;
   msg.textContent = 'Tailoring. This takes up to a minute.';
   try {
@@ -139,7 +242,7 @@ async function generate(event) {
       }
     }
     if (!block) throw new Error('The model did not return a resume. Try again.');
-    renderResult(block.input, validateResult(block.input, profile, opts), opts);
+    renderResult(block.input, validateResult(block.input, profile, { ...opts, knowledge }), opts);
     msg.textContent = '';
   } catch (err) {
     msg.textContent = err.message;
@@ -169,6 +272,29 @@ function download() {
 async function init() {
   $('model').innerHTML = MODELS.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('');
   try { await loadProfile(); } catch (err) { $('login-msg').textContent = err.message; }
+  await pullKnowledge();
+  $('questions').addEventListener('click', answerQuestion);
+  $('retailor').addEventListener('click', () => $('gen').requestSubmit());
+  $('saved').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-collection]');
+    if (!b) return;
+    knowledge = removeEntry(knowledge, b.dataset.collection, b.dataset.key);
+    await persist();
+  });
+  $('token-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const token = $('token').value.replace(/\s/g, '');
+    try {
+      sessionStorage.setItem(TOKEN_STORE, token);
+      if ($('token-remember').checked) localStorage.setItem(TOKEN_STORE, token);
+    } catch { /* storage blocked */ }
+    $('token').value = '';
+    await persist();
+  });
+  $('token-clear').addEventListener('click', () => {
+    try { sessionStorage.removeItem(TOKEN_STORE); localStorage.removeItem(TOKEN_STORE); } catch { /* ignore */ }
+    setSyncStatus('Token removed. Answers stay on this device only.');
+  });
 
   $('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();

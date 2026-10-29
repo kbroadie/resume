@@ -23,6 +23,20 @@ Output is one column of plain text with standard headings (Summary, Skills, Expe
 - Only California Arts Council and CVAG are public service jobs. The government title "Program Specialist II, Visual Branding & Communications Specialist" is used only for government postings, and "Creative Technology Director" only when it fits a posting better than "Art Director".
 - Pick the location (Yucca Valley or Palm Springs) for each resume. Only city and state are printed.
 
+## Saved answers (the database that keeps improving)
+
+Each question on the Questions tab can be answered once:
+
+- **Which wording?** Tap the one you want. Its alternates disappear from every future run.
+- **Free-text questions:** Type an answer and save it as a **fact** (becomes a citable bullet, attached to a role when the question names one) or a **preference** (a standing instruction, such as "always lead with grants").
+- **Don't ask again:** Marks the topic as settled.
+
+The model is told every saved answer and must not repeat the question; the app also filters any repeated question itself. Remove a saved answer under **Saved answers** to be asked again.
+
+Answers always save on the device. To follow you across devices, add a fine-grained GitHub token (repository `resume`, Contents read and write) under **Sync saved answers to GitHub**. Answers are then committed to `data/knowledge.json`. That file is public, like the rest of the repo. Reading works without a token.
+
+Facts that are lasting parts of your history can be promoted into `data/profile.json` by hand or by asking Claude. `knowledge.json` is the app's own file and the profile stays hand-curated.
+
 ## Editing the profile
 
 Edit `data/profile.json` and reload. Add a bullet by giving it a unique `id`, `status`, `tags`, and `text`. Move something from `needs_confirm` to `verified` once Kevin confirms it. Answer the items in `open_questions` and delete them.
@@ -46,5 +60,8 @@ Settings > Pages > Deploy from a branch > `main` / root. The page is public, and
 
 - `index.html`, `styles.css`, `app.js`: the interface
 - `lib.js`: prompt, schema, validation, and rendering (no DOM)
+- `knowledge.js`: saved answers, merging, and question filtering
+- `sync.js`: saves `data/knowledge.json` to GitHub
+- `data/knowledge.json`: saved answers (starts empty)
 - `data/profile.json`: the source of truth
 - `test/`: tests

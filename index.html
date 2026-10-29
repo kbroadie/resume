@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta name="robots" content="noindex">
   <title>Resume Tailor</title>
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
   <header class="bar">
@@ -67,8 +67,9 @@
           <article id="resume" class="paper"></article>
         </div>
         <div id="p-q" role="tabpanel" aria-labelledby="t-q" hidden>
-          <p class="hint">Type your answers in Options and tailor again.</p>
+          <p class="hint">Answers are saved once and never asked again. Saved answers are public if you sync to GitHub.</p>
           <ul id="questions" class="cards"></ul>
+          <button id="retailor" type="button" class="primary" hidden>Tailor again with my answers</button>
           <h3>Fit to the posting</h3>
           <p id="fit"></p>
         </div>
@@ -78,6 +79,25 @@
         </div>
       </section>
 
+      <details class="saved">
+        <summary>Saved answers <span id="saved-count"></span></summary>
+        <ul id="saved" class="cards"></ul>
+      </details>
+
+      <details class="sync">
+        <summary>Sync saved answers to GitHub (optional)</summary>
+        <p class="hint">Without a token, answers stay on this device. With one, they save to <code>data/knowledge.json</code> in the public <code>kbroadie/resume</code> repo and follow you to every device. Anything saved there is public.</p>
+        <p class="hint">Create a fine-grained token at github.com > Settings > Developer settings > Personal access tokens, limited to the <code>resume</code> repository, with Contents set to read and write.</p>
+        <form id="token-form" autocomplete="off">
+          <label for="token">GitHub token</label>
+          <input id="token" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="github_pat_...">
+          <label class="check"><input id="token-remember" type="checkbox"> Remember on this device</label>
+          <button type="submit" class="primary">Save token and sync</button>
+        </form>
+        <button id="token-clear" type="button" class="link">Remove token</button>
+        <p id="sync-status" class="hint" role="status"></p>
+      </details>
+
       <details class="profile">
         <summary>Profile questions waiting on you</summary>
         <ul id="open-questions" class="cards"></ul>
@@ -85,6 +105,6 @@
     </section>
   </main>
 
-  <script type="module" src="app.js?v=5"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>
