@@ -1,4 +1,4 @@
-import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml } from './lib.js?v=3';
+import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml } from './lib.js?v=4';
 
 const API = 'https://api.anthropic.com/v1';
 const KEY_STORE = 'resume-tailor-key';
@@ -102,7 +102,7 @@ async function generate(event) {
   event.preventDefault();
   const msg = $('gen-msg');
   const btn = $('go');
-  const opts = { includePortfolio: $('portfolio').checked, includePersonalLine: $('personal').checked, locationId: $('location').value };
+  const opts = { includePortfolio: $('portfolio').checked, includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
   try { localStorage.setItem('resume-tailor-location', opts.locationId); } catch { /* ignore */ }
   const req = buildRequest(profile, { posting: $('posting').value, notes: $('notes').value, ...opts });
   btn.disabled = true;

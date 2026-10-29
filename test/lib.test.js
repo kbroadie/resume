@@ -151,3 +151,14 @@ test('sign-in check uses a CORS-enabled endpoint', () => {
   assert.ok(!src.includes('${API}/models'));
   assert.ok(src.includes('Anthropic did not accept that key'));
 });
+
+test('Desert Sun uses the full title, with the short form available for character limits', () => {
+  const ds = profile.roles.find((r) => r.id === 'ds');
+  assert.equal(ds.title, 'Online Production Coordinator');
+  assert.equal(ds.title_options[0].title, 'Online Producer');
+  assert.match(buildRequest(profile, { posting: 'x', shortTitles: true, now }).user, /"short_titles":true/);
+  assert.match(buildRequest(profile, { posting: 'x', now }).user, /"short_titles":false/);
+  const r = good();
+  r.experience.push({ role_id: 'ds', title_id: 'short', bullets: [{ text: 'Maintained classified and real estate databases.', source_ids: ['ds.db'] }] });
+  assert.ok(buildDoc(r, profile).experience.some((e) => e.title === 'Online Producer'));
+});

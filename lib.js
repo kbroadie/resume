@@ -73,7 +73,7 @@ HARD RULES
 13. fit_notes: 2 to 5 short lines on how the resume lines up with the posting's main requirements and where it does not.
 
 14. Only the roles marked "government": true (California Arts Council and CVAG) were public service jobs. Never describe any other role as public service, government, or civic work.
-15. Titles: use a role's default title unless a title_options entry's use_when clearly applies to this posting; then set title_id to that option's id. Never use the CVAG government title for a non-government posting.
+15. Titles: use a role's default title unless a title_options entry's use_when clearly applies to this posting; then set title_id to that option's id. Never use the CVAG government title for a non-government posting. When short_titles is true, use the option whose use_when mentions short_titles.
 16. Never print a proficiency level for any skill (no "Expert", "Advanced", "Intermediate"). Skills with an internal_level or level_note are listed plainly, and only when the posting asks for them. If a posting makes the applicant rate themselves, say so in a question.
 17. Affiliations: list one only when its use_when fits the posting. Never print years.
 18. Use nothing that is not in PROFILE. Some profile wording began as answers on applications Kevin did not win. Never name those organizations or imply he worked there.
@@ -148,12 +148,13 @@ export const RESUME_TOOL = {
   }
 };
 
-export function buildRequest(profile, { posting, notes = '', includePortfolio = false, includePersonalLine = true, now = new Date() }) {
+export function buildRequest(profile, { posting, notes = '', includePortfolio = false, includePersonalLine = true, shortTitles = false, now = new Date() }) {
   const { usable, heldBack } = splitProfile(profile, { includePersonalLine });
   const facts = {
     years_of_experience: yearsSince(profile.meta.career_start, now),
     career_start_year: Number(profile.meta.career_start.slice(0, 4)),
-    include_portfolio: includePortfolio
+    include_portfolio: includePortfolio,
+    short_titles: shortTitles
   };
   const user = [
     '<POSTING>', posting.trim(), '</POSTING>',

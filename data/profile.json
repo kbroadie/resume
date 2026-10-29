@@ -1354,7 +1354,7 @@
     },
     {
       "id": "ds",
-      "title": "Online Producer",
+      "title": "Online Production Coordinator",
       "org": "The Desert Sun",
       "location": "Palm Springs, CA",
       "start": "1999-07",
@@ -1514,7 +1514,14 @@
           "status": "verified"
         }
       ],
-      "start_note": "Started as a paid intern in July 1999; hired as Online Production Coordinator in September 1999; ended as Online Producer in July 2009. The promotion date is unknown."
+      "start_note": "Started as a paid intern in July 1999; hired as Online Production Coordinator in September 1999, which was Kevin's full title through July 2009. Online Producer is the short form.",
+      "title_options": [
+        {
+          "id": "short",
+          "title": "Online Producer",
+          "use_when": "Only when short_titles is true in FACTS (the posting or form has tight character limits)."
+        }
+      ]
     },
     {
       "id": "kbcs",
@@ -1893,10 +1900,7 @@
     "Application-form answers such as salary, start date, work authorization, referrals, and EEO answers",
     "KBCS (Kevin's decision)"
   ],
-  "open_questions": [
-    "When were you promoted from Online Production Coordinator to Online Producer? The Desert Sun entry uses Online Producer for the whole span until you say.",
-    "The NGO resume's CVAG survey bullet was cut off mid-sentence. How did it end?"
-  ],
+  "open_questions": [],
   "affiliations": [
     {
       "id": "aff.mesa",
