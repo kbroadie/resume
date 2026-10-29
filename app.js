@@ -1,4 +1,4 @@
-import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml } from './lib.js';
+import { MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml } from './lib.js?v=3';
 
 const API = 'https://api.anthropic.com/v1';
 const KEY_STORE = 'resume-tailor-key';
