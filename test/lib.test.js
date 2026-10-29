@@ -37,7 +37,7 @@ test('dates and years', () => {
 test('held-back roles and bullets never reach the model as usable', () => {
   const p = structuredClone(profile);
   p.roles.find((r) => r.id === 'cod').status = 'needs_confirm';
-  p.roles.find((r) => r.id === 'ds').bullets[0].status = 'needs_confirm';
+  p.roles.find((r) => r.id === 'ds').bullets.find((b) => b.id === 'ds.web').status = 'needs_confirm';
   const { usable, heldBack } = splitProfile(p);
   assert.ok(!usable.roles.some((r) => r.id === 'cod'));
   assert.ok(!usable.roles.find((r) => r.id === 'ds').bullets.some((b) => b.id === 'ds.web'));
