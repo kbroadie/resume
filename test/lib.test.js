@@ -8,7 +8,7 @@ const now = new Date('2026-10-29');
 
 test('profile ids are unique and statuses valid', () => {
   const ids = [];
-  for (const r of profile.roles) { ids.push(r.id); for (const b of r.bullets) { ids.push(b.id); assert.ok(['verified', 'needs_confirm'].includes(b.status), b.id); } }
+  for (const r of profile.roles) { ids.push(r.id); for (const b of r.bullets) { ids.push(b.id); assert.ok(['verified', 'needs_confirm', 'excluded'].includes(b.status), b.id); } }
   for (const s of profile.skills) ids.push(s.id);
   for (const e of profile.education) ids.push(e.id);
   for (const c of profile.certifications) ids.push(c.id);
