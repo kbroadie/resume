@@ -1,19 +1,19 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=23';
-import { buildPdf, docFromText } from './pdf.js?v=23';
+} from './lib.js?v=24';
+import { buildPdf, docFromText } from './pdf.js?v=24';
 import {
   SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=23';
-import { icon, hydrateIcons } from './icons.js?v=23';
+} from './ats.js?v=24';
+import { icon, hydrateIcons } from './icons.js?v=24';
 import {
   emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=23';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=23';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=23';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=23';
+} from './knowledge.js?v=24';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=24';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=24';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=24';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -1043,16 +1043,42 @@ async function startMerge() {
     reviewing = { pending, ops: input.ops, evidence, preview };
     const lines = preview.applied.map((a) => `<li>${esc(describeOp(a.op, profile))}</li>`).join('');
     const skipped = preview.skipped.map((x) => `<li class="skip">Skipped: ${esc(describeOp(x.op, profile))} (${esc(x.why)})</li>`).join('');
-    const clarify = (input.clarify || []).map((c) => `<li class="skip">Needs your input: ${esc(c)}</li>`).join('');
+    const questions = input.clarify || [];
+    const clarify = questions.map((c, i) => `<li class="clarify"><label for="clar-${i}">Needs your input</label><p>${esc(c)}</p>
+      <textarea id="clar-${i}" rows="2" data-q="${esc(c)}" placeholder="Type your answer" aria-label="Your answer"></textarea>
+      <div class="chips"><button type="button" class="chip-btn" data-fill="clar-${i}" data-text="Yes">Yes</button><button type="button" class="chip-btn" data-fill="clar-${i}" data-text="No">No</button></div></li>`).join('');
     box.innerHTML = `<p>${esc(input.summary || '')}</p>
       <ul class="cards">${lines || '<li>No new entries. Everything is already in the library.</li>'}${skipped}${clarify}</ul>
+      ${questions.length ? '<button type="button" id="revise" class="btn tonal block" disabled>Answer, then update the changes</button>' : ''}
       <div class="row2"><button type="button" id="approve" class="btn primary">${preview.applied.length ? 'Approve and merge' : 'Mark as handled'}</button>
       <button type="button" id="cancel-merge" class="btn">Cancel</button></div><p id="review-msg" class="hint" role="status"></p>`;
+    if (questions.length) {
+      const refresh = () => { $('revise').disabled = !box.querySelector('textarea[data-q]:not(:placeholder-shown)'); };
+      box.addEventListener('input', refresh);
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-fill]');
+        if (b) { $(b.dataset.fill).value = b.dataset.text; refresh(); }
+      });
+      $('revise').addEventListener('click', reviseMerge);
+    }
     $('approve').addEventListener('click', approveMerge);
     $('cancel-merge').addEventListener('click', () => { $('review-dialog').close(); reviewing = null; });
   } catch (err) {
     box.innerHTML = `<p class="msg" role="alert">${esc(err.message)}</p>`;
   }
+}
+
+// Saves the answers to the librarian's questions as notes, then drafts the changes again with them included.
+async function reviseMerge() {
+  const answers = [...$('review').querySelectorAll('textarea[data-q]')].map((t) => ({ q: t.dataset.q, a: t.value.trim() })).filter((x) => x.a);
+  if (!answers.length) return;
+  const now = Date.now();
+  answers.forEach((x, i) => {
+    const text = `Question: ${x.q} Answer: ${x.a}`;
+    knowledge = applyAnswer(knowledge, { text }, { action: 'note', text }, new Date(now + i));
+  });
+  await persist();
+  await startMerge();
 }
 
 async function approveMerge() {

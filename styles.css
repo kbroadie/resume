@@ -527,3 +527,10 @@ h3.drop-title { margin: var(--s1) 0 0; font-family: var(--display); font-weight:
 .accepted .chip-btn { background: var(--surface); }
 .tailor .field > label { margin-bottom: 2px; }
 .cta .btn.block { min-height: 3.4rem; font-size: 1.02rem; }
+
+/* Library review: questions the librarian needs answered */
+.cards li.clarify { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 30%, transparent); color: var(--fg); }
+.clarify label { color: var(--warn); }
+.clarify p { margin: var(--s1) 0 var(--s2); }
+.clarify textarea { margin: 0 0 var(--s2); min-height: 4rem; resize: vertical; }
+#revise { margin-bottom: var(--s2); }

@@ -1,7 +1,7 @@
 // Turns Kevin's saved answers into edits to the master profile, the way a chat session would:
 // reworded bullets on the right role, resolved wording conflicts, corrected dates and titles.
 // Claude proposes the edits; everything here is deterministic and checks them before they are applied.
-import { slug } from './knowledge.js?v=23';
+import { slug } from './knowledge.js?v=24';
 
 export const LIBRARIAN_SYSTEM = `You maintain Kevin Broadie's master resume library (a JSON profile). Kevin has given you answers, corrections, and choices. Turn them into precise edits to the library, as a careful editor would.
 
@@ -17,6 +17,7 @@ RULES
 9. Never delete anything except through resolve_group. Never touch status, never_include removals, or contact details.
 10. If an item is unclear or you cannot merge it safely, list it in "clarify" in plain words and make no edit for it.
 11. "summary" is one to three plain sentences telling Kevin what will change.
+12. A note that reads "Question: ... Answer: ..." is Kevin's reply to a question you asked earlier. Treat the answer as settled and act on it (for example, if he says two bullets describe the same event, make one bullet with update_bullet rather than adding a second). Do not ask the same question again.
 
 Respond only by calling propose_library_changes, once.`;
 
