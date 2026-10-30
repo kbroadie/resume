@@ -20,7 +20,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=27">
+  <link rel="stylesheet" href="styles.css?v=28">
 </head>
 <body>
   <header class="appbar">
@@ -28,7 +28,9 @@
       <img class="logo" src="favicon.svg" alt="" width="28" height="28">
       <h1>Resume Advisor</h1>
     </div>
+    <span id="toolbar-title" class="toolbar-title" aria-hidden="true"></span>
     <div class="appbar-actions">
+      <button id="open-palette" class="icon-btn desk-only" type="button" aria-label="Quick actions" hidden><i data-icon="search"></i></button>
       <button id="open-history" class="icon-btn" type="button" aria-label="History of tailored resumes" hidden><i data-icon="history"></i></button>
       <button id="theme" class="icon-btn" type="button" aria-label="Theme: automatic. Tap to change."></button>
       <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" hidden><i data-icon="gear"></i></button>
@@ -133,6 +135,7 @@
             <button id="stat-edited" type="button" class="pill pill-btn" hidden>Edited. Revert</button>
           </div>
 
+          <div class="res-side">
           <section id="fit-strip" class="fit-strip" aria-label="Fit with the posting" hidden></section>
 
           <div id="regen-banner" class="banner regen-banner" hidden>
@@ -156,6 +159,9 @@
             <button id="open-compare-top" type="button" class="btn tonal"><i data-icon="compare"></i><span>Compare</span></button>
           </div>
 
+          </div>
+
+          <div class="res-main">
           <article id="resume" class="paper"></article>
           <textarea id="resume-edit" class="paper-edit" aria-label="Edit resume text" hidden spellcheck="true"></textarea>
           <p class="hint tap-hint">Tap Copy beside a section or a job to fill one form field at a time.</p>
@@ -167,6 +173,7 @@
               <button id="composer-send" type="submit" class="send" aria-label="Send request" disabled><i data-icon="send"></i></button>
             </div>
           </form>
+          </div>
 
         </div>
       </section>
@@ -305,12 +312,32 @@
   </main>
 
   <nav id="tabbar" class="tabbar" aria-label="Sections" hidden>
-    <button type="button" data-view="tailor" aria-current="page"><i data-icon="pencil"></i><span>Tailor</span></button>
-    <button type="button" data-view="resume"><i data-icon="file"></i><span>Resume</span></button>
-    <button type="button" data-view="improve"><i data-icon="sparkle"></i><span>Improve</span><b id="badge-i" class="badge" hidden></b></button>
-    <button type="button" data-view="questions"><i data-icon="question"></i><span>Questions</span><b id="badge-q" class="badge" hidden></b></button>
-    <button type="button" data-view="library"><i data-icon="book"></i><span>Library</span><b id="badge-l" class="badge" hidden></b></button>
+    <div class="side-brand desk-only"><img class="logo" src="favicon.svg" alt="" width="28" height="28"><span>Resume Advisor</span></div>
+    <button type="button" data-view="tailor" aria-current="page"><i data-icon="pencil"></i><span>Tailor</span><kbd class="desk-only" data-key="1"></kbd></button>
+    <button type="button" data-view="resume"><i data-icon="file"></i><span>Resume</span><kbd class="desk-only" data-key="2"></kbd></button>
+    <button type="button" data-view="improve"><i data-icon="sparkle"></i><span>Improve</span><b id="badge-i" class="badge" hidden></b><kbd class="desk-only" data-key="3"></kbd></button>
+    <button type="button" data-view="questions"><i data-icon="question"></i><span>Questions</span><b id="badge-q" class="badge" hidden></b><kbd class="desk-only" data-key="4"></kbd></button>
+    <button type="button" data-view="library"><i data-icon="book"></i><span>Library</span><b id="badge-l" class="badge" hidden></b><kbd class="desk-only" data-key="5"></kbd></button>
+    <button type="button" data-view="history" class="desk-only"><i data-icon="history"></i><span>History</span><kbd class="desk-only" data-key="6"></kbd></button>
+    <div class="side-foot desk-only">
+      <button type="button" id="side-palette" class="side-search"><i data-icon="search"></i><span>Quick actions</span><kbd data-key="K"></kbd></button>
+      <button type="button" id="side-keys" class="side-link"><span>Keyboard shortcuts</span><kbd data-key="/"></kbd></button>
+    </div>
   </nav>
+
+  <!-- Quick actions (Ctrl+K) -->
+  <dialog id="palette" class="palette" aria-label="Quick actions">
+    <div class="palette-box">
+      <div class="palette-input"><i data-icon="search"></i><input id="palette-q" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" autocomplete="off" spellcheck="false" placeholder="Type a command, or the name of a resume"><kbd>Esc</kbd></div>
+      <ul id="palette-list" class="palette-list" role="listbox"></ul>
+    </div>
+  </dialog>
+
+  <!-- Keyboard shortcuts -->
+  <dialog id="keys-dialog" class="sheet" aria-labelledby="keys-h">
+    <div class="sheet-head"><h2 id="keys-h">Keyboard shortcuts</h2><button type="button" class="chip-btn" data-close>Done</button></div>
+    <dl id="keys-list" class="keys"></dl>
+  </dialog>
 
   <!-- Settings -->
   <dialog id="settings-dialog" class="sheet" aria-labelledby="settings-h">
@@ -389,6 +416,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=27"></script>
+  <script type="module" src="app.js?v=28"></script>
 </body>
 </html>

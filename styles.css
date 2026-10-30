@@ -627,3 +627,134 @@ dialog.sheet[open]::backdrop { animation: backdrop-in .28s ease; }
 .composer-msg { margin: 0 0 var(--s2); font-family: var(--sans); font-size: .82rem; line-height: 1.35; color: var(--muted); text-align: center; }
 @media (min-width: 40rem) { .composer { margin-inline: calc(-1 * var(--s5)); padding-inline: var(--s5); bottom: calc(-1 * var(--s5)); } }
 @media print { .composer, .fit-strip { display: none !important; } }
+
+
+/* =====================================================================================================
+   Desktop: a window with a sidebar, a toolbar, and panes that scroll on their own.
+   The phone layout above is untouched; everything here applies from 62rem up.
+   ===================================================================================================== */
+.res-side, .res-main { display: contents; }
+.toolbar-title, .side-brand, .side-foot { display: none; }
+kbd { font: 700 .7rem/1 var(--sans); letter-spacing: .02em; padding: 3px 6px; border-radius: 5px; border: 1px solid var(--line-strong); border-bottom-width: 2px; background: var(--surface); color: var(--muted); white-space: nowrap; }
+@media (max-width: 61.999rem) { .desk-only { display: none !important; } }
+
+dialog.palette { margin: 11vh auto auto; width: min(38rem, calc(100% - 2rem)); max-height: 70vh; padding: 0; border: 1px solid var(--line-strong); border-radius: 16px; background: var(--bg); color: var(--fg); box-shadow: 0 24px 80px rgba(0, 0, 0, .35); overflow: hidden; }
+dialog.palette[open] { animation: palette-in .16s cubic-bezier(.2, .8, .2, 1); }
+dialog.palette::backdrop { background: rgba(10, 10, 8, .38); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+@keyframes palette-in { from { transform: translateY(-.5rem) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
+.palette-box { display: flex; flex-direction: column; max-height: 70vh; }
+.palette-input { display: flex; align-items: center; gap: var(--s3); padding: 0 var(--s4); border-bottom: 1px solid var(--line); color: var(--muted); }
+.palette-input .ico { width: 1.3rem; height: 1.3rem; }
+.palette-input input { flex: 1; min-width: 0; margin: 0; min-height: 3.5rem; border: 0; background: none; border-radius: 0; padding: 0; font-size: 1.12rem; color: var(--fg); outline: none; }
+.palette-list { list-style: none; margin: 0; padding: var(--s2); overflow-y: auto; }
+.palette-list li[role="option"] { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: .6rem var(--s3); border-radius: 10px; cursor: pointer; font-family: var(--sans); font-weight: 700; font-size: .92rem; }
+.palette-list li[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); }
+.palette-group { padding: var(--s3) var(--s3) var(--s1); font: 700 .68rem/1 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.palette-none { padding: var(--s4); color: var(--muted); text-align: center; font-family: var(--sans); }
+.keys { margin: 0; display: grid; gap: var(--s1); }
+.keys > div { display: flex; align-items: center; justify-content: space-between; gap: var(--s4); padding: var(--s2) 0; border-bottom: 1px solid var(--line); }
+.keys dt { font-family: var(--sans); font-size: .92rem; }
+.keys dd { margin: 0; display: flex; gap: 4px; align-items: center; flex: none; font-family: var(--sans); font-size: .8rem; color: var(--muted); }
+.dragging .drop { border-color: var(--accent); background: var(--accent-soft); }
+
+@media (min-width: 62rem) {
+  :root { --sidebar: 15.5rem; --appbar: 3.25rem; }
+  body:has(#tabbar:not([hidden])) {
+    display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "side top" "side main";
+  }
+  body:has(#tabbar:not([hidden])) .brand { display: none; }
+  .appbar { grid-area: top; padding-inline: var(--s6) var(--s5); }
+  main { grid-area: main; padding: var(--s5) var(--s6) 0; scrollbar-width: thin; }
+  #open-history { display: none; }
+  .toolbar-title { display: block; font-family: var(--display); font-size: var(--step-1); line-height: 1; letter-spacing: .005em; white-space: pre; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-right: auto; }
+  .appbar-actions { flex: none; }
+  .icon-btn { width: 2.4rem; height: 2.4rem; border-radius: 10px; }
+  .icon-btn:hover { background: var(--surface-2); }
+
+  /* The sidebar is the old tab bar, turned on its side. */
+  .tabbar { grid-area: side; display: flex; flex-direction: column; gap: 2px; padding: 0 var(--s2) var(--s3); background: color-mix(in srgb, var(--surface-2) 55%, var(--bg)); border-top: 0; border-right: 1px solid var(--line); overflow-y: auto; }
+  .side-brand { display: flex; align-items: center; gap: var(--s2); height: var(--appbar); margin: 0 calc(-1 * var(--s2)) var(--s2); padding: 0 var(--s4); font-family: var(--display); font-size: var(--step-1); letter-spacing: .005em; border-bottom: 1px solid var(--line); flex: none; }
+  .tabbar button {
+    position: relative; flex-direction: row; justify-content: flex-start; gap: var(--s3); min-height: 2.6rem; padding: 0 var(--s3); border-radius: 10px;
+    font: 700 .92rem/1 var(--sans); font-variant-caps: normal; letter-spacing: .01em; text-align: left; color: var(--fg);
+  }
+  .tabbar button:hover { background: color-mix(in srgb, var(--fg) 7%, transparent); }
+  .tabbar button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+  .tabbar button[aria-current="page"]::before { display: none; }
+  .tabbar button > span { flex: 1; }
+  .tabbar .ico { width: 1.3rem; height: 1.3rem; }
+  .tabbar .badge { position: static; margin: 0; flex: none; }
+  .tabbar button kbd { flex: none; opacity: 0; transition: opacity .12s; }
+  .tabbar button:hover kbd, .tabbar button:focus-visible kbd { opacity: 1; }
+  .side-foot { display: flex; flex-direction: column; gap: var(--s2); margin-top: auto; padding-top: var(--s3); border-top: 1px solid var(--line); }
+  .tabbar .side-search { border: 1px solid var(--line-strong); background: var(--surface); color: var(--muted); font-weight: 400; }
+  .tabbar .side-search kbd { opacity: 1; }
+  .tabbar .side-link { min-height: 2rem; font-weight: 400; font-size: .82rem; color: var(--muted); }
+  .tabbar .side-link kbd { opacity: 1; }
+
+  #app { height: 100%; min-height: 0; }
+  #app > .view { max-width: 48rem; }
+  #app > #v-tailor { max-width: 42rem; padding-top: var(--s5); }
+  #app > #v-resume { max-width: none; height: 100%; min-height: 0; }
+  #app > #v-improve { max-width: 76rem; }
+  #app > #v-compare { max-width: none; height: 100%; }
+  .toast { inset-inline: var(--sidebar) 0; bottom: var(--s5); }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) 22%, transparent); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--fg) 38%, transparent); background-clip: content-box; border: 3px solid transparent; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* Views already have titles in the toolbar */
+  .view-title { margin-bottom: var(--s5); }
+
+  /* Resume: the draft on the left, everything you do to it on the right. */
+  #resume-body { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 21.5rem; grid-template-rows: auto auto minmax(0, 1fr); column-gap: var(--s6); }
+  .res-head, .stats { grid-column: 1 / -1; }
+  .res-head { margin-bottom: var(--s2); }
+  .res-side, .res-main { display: block; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+  .res-side { padding-bottom: var(--s5); }
+  .res-main { grid-column: 1; grid-row: 3; padding-right: var(--s2); }
+  .res-side { grid-column: 2; grid-row: 3; }
+  .res-main > * { max-width: 46rem; margin-inline: auto; }
+  .paper { padding: 3rem 3.4rem 3.2rem; font-size: 1.04rem; }
+  .paper-edit { min-height: 70vh; }
+  .tap-hint { margin-top: var(--s3); }
+  .composer { position: sticky; bottom: 0; margin: var(--s3) auto 0; padding: var(--s3) 0 var(--s5); background: var(--bg); border-top: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .composer::before { content: ""; position: absolute; inset: -1.2rem 0 auto; height: 1.2rem; background: linear-gradient(transparent, var(--bg)); pointer-events: none; }
+  .dl-group { grid-template-columns: 1fr 1fr; }
+  .dl-label { grid-column: 1 / -1; }
+  .fit-strip { margin-top: 0; }
+  .toolbar.actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .btn.tile { min-height: 4.4rem; padding: .55rem .25rem; font-size: .76rem; }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .res-side .banner { margin-bottom: var(--s3); }
+  .regen-banner { grid-template-columns: auto 1fr; }
+  .regen-banner .btn { grid-column: 1 / -1; }
+
+  /* Improve: two columns of sections */
+  #improve-body { columns: 2 24rem; column-gap: var(--s6); }
+  #improve-body > .view-title { column-span: all; }
+  #improve-body > .flourish-row { display: none; }
+  #improve-body > .sec { break-inside: avoid; margin-bottom: var(--s5); }
+  #improve-body > [aria-labelledby="sug-h"] { break-inside: auto; }
+
+  #history { grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr)); }
+
+  /* Compare fills the window */
+  #v-compare { height: 100%; }
+  .panes[data-mode="both"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+
+  /* Sheets are centred windows */
+  dialog.sheet { margin: auto; max-width: 36rem; border-radius: 16px; box-shadow: 0 24px 80px rgba(0, 0, 0, .35); }
+  .sheet-grab { display: none; }
+  dialog.sheet[open] { animation: palette-in .18s cubic-bezier(.2, .8, .2, 1); }
+  .login { padding-top: 12vh; }
+}
+
+/* Installed as a desktop app with the title bar folded into the page */
+@media (display-mode: window-controls-overlay) {
+  .appbar, .side-brand { -webkit-app-region: drag; app-region: drag; }
+  .appbar { height: max(var(--appbar), env(titlebar-area-height, 0px)); padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + var(--s4)); }
+  .appbar button, .appbar a, .appbar input { -webkit-app-region: no-drag; app-region: no-drag; }
+}

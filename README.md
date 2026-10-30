@@ -16,6 +16,8 @@ Five tabs along the bottom keep each task on one screen (History is the clock in
 - **Library:** merge saved answers into the master profile, or teach it something directly.
 - **History:** every resume you tailor, on this device only, with its status (Drafted, Applied, Interviewing, Offer, Rejected, Withdrawn), application link, and keyword match.
 
+On a wide window (about 990 pixels and up) the app becomes a desktop layout: a sidebar for the sections (with History), a toolbar that names where you are, and panes that scroll on their own. The Resume tab puts the draft on the left and the fit scores, actions, downloads, and Improve and Compare on the right; the comment box stays docked under the draft. Improve runs in two columns, and Compare fills the window. **Quick actions** (Ctrl or Cmd + K) is a command palette for every section, resume action, and recent resume. Other shortcuts: Alt or Option + 1 to 6 for the sections, / to ask for a change, Ctrl or Cmd + S for the PDF, Ctrl or Cmd + Shift + C to copy the resume, and ? for the full list. Drop posting text or a text file onto the Tailor page to add it. The window title names the section and resume. When installed from the browser as an app, the title bar folds into the toolbar where the browser supports it. The phone layout is unchanged.
+
 The sun and moon button switches between automatic, light, and dark. Settings (gear) holds the model, GitHub sync, and sign-out. You can add the page to your phone's home screen.
 
 ## How it works

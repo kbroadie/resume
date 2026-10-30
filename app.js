@@ -1,20 +1,20 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=27';
-import { buildPdf, docFromText } from './pdf.js?v=27';
+} from './lib.js?v=28';
+import { buildPdf, docFromText } from './pdf.js?v=28';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=27';
-import { icon, hydrateIcons } from './icons.js?v=27';
+} from './ats.js?v=28';
+import { icon, hydrateIcons } from './icons.js?v=28';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=27';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=27';
-import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=27';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=27';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=27';
+} from './knowledge.js?v=28';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=28';
+import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=28';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=28';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=28';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -99,7 +99,8 @@ function applyTheme(mode) {
   if (mode === 'auto') { delete document.documentElement.dataset.theme; store.del(THEME_STORE); }
   else { document.documentElement.dataset.theme = mode; store.set(THEME_STORE, mode); }
   $('theme').innerHTML = THEME_ICONS[mode];
-  $('theme').setAttribute('aria-label', `Theme: ${THEME_NAMES[mode].toLowerCase()}. Tap to change.`);
+  $('theme').setAttribute('aria-label', `Theme: ${THEME_NAMES[mode].toLowerCase()}. Click or tap to change.`);
+  $('theme').title = $('theme').getAttribute('aria-label');
   requestAnimationFrame(() => $('theme-color').setAttribute('content', getComputedStyle(document.body).backgroundColor));
 }
 
@@ -122,6 +123,7 @@ function showView(name) {
   }
   $('main').scrollTop = 0;
   $('toast').hidden = true;
+  updateTitle();
 }
 
 function show(signedIn) {
@@ -130,6 +132,7 @@ function show(signedIn) {
   $('tabbar').hidden = !signedIn;
   $('open-settings').hidden = !signedIn;
   $('open-history').hidden = !signedIn;
+  $('open-palette').hidden = !signedIn;
   if (signedIn) showView(document.querySelector('.view:not([hidden])')?.dataset.view || 'tailor');
 }
 
@@ -739,6 +742,7 @@ function renderCurrent() {
     : '<li>No problems found. Every bullet cites verified library entries and uses only numbers from them.</li>';
   renderFit();
   renderRegenBanner();
+  updateTitle();
 
   renderImprove();
 }
@@ -1276,6 +1280,155 @@ async function teach() {
   await startMerge();
 }
 
+/* ---------- desktop: window title, quick actions, shortcuts, drag and drop ---------- */
+
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const MOD = IS_MAC ? '⌘' : 'Ctrl';
+const ALT = IS_MAC ? '⌥' : 'Alt';
+const VIEW_NAMES = { tailor: 'Tailor', resume: 'Resume', improve: 'Improve', compare: 'Compare', questions: 'Questions', library: 'Library', history: 'History' };
+const VIEW_KEYS = ['tailor', 'resume', 'improve', 'questions', 'library', 'history'];
+
+// The window title shows where you are, and on the Resume and Improve tabs, which resume.
+function updateTitle() {
+  const view = document.querySelector('.view:not([hidden])')?.dataset.view;
+  if (!view || $('app').hidden) { document.title = 'Resume Advisor'; $('toolbar-title').textContent = ''; return; }
+  const name = VIEW_NAMES[view] || '';
+  const about = current && ['resume', 'improve', 'compare'].includes(view) ? [current.title, current.company].filter(Boolean).join(' at ') : '';
+  document.title = `${about ? `${about} – ` : ''}${name} · Resume Advisor`;
+  $('toolbar-title').textContent = about ? `${name}  ·  ${about}` : name;
+}
+
+const SHORTCUTS = [
+  ['Quick actions', `${MOD} K`],
+  ['Go to Tailor, Resume, Improve, Questions, Library, History', `${ALT} 1 to 6`],
+  ['Ask for a change to the resume', '/'],
+  ['Send the change request, or tailor the resume', `${MOD} Enter`],
+  ['Copy the whole resume', `${MOD} Shift C`],
+  ['Download the PDF', `${MOD} S`],
+  ['Show these shortcuts', '?'],
+  ['Close a window or the quick actions', 'Esc']
+];
+
+function showKeys() {
+  $('keys-list').innerHTML = SHORTCUTS.map(([what, keys]) => `<div><dt>${esc(what)}</dt><dd>${keys.split(' ').map((k) => (k === 'to' ? '<span>to</span>' : `<kbd>${esc(k)}</kbd>`)).join('')}</dd></div>`).join('');
+  showDialog('keys-dialog');
+}
+
+let paletteItems = [];
+let paletteActive = 0;
+
+function paletteCommands() {
+  const go = (view, key) => ({ group: 'Go to', label: VIEW_NAMES[view], hint: `${ALT} ${key}`, run: () => showView(view) });
+  const list = VIEW_KEYS.map((v, i) => go(v, i + 1));
+  if (current) {
+    list.push(
+      { group: 'This resume', label: 'Ask for a change', hint: '/', run: () => askFor('') },
+      { group: 'This resume', label: 'Regenerate', run: openRegenerate },
+      { group: 'This resume', label: 'Copy the whole resume', hint: `${MOD} Shift C`, run: () => writeClipboard(current.text, 'Copied the full resume.') },
+      { group: 'This resume', label: 'Download as PDF', hint: `${MOD} S`, run: () => $('pdf').click() },
+      { group: 'This resume', label: 'Download as text', run: download },
+      { group: 'This resume', label: 'Compare posting and resume', run: () => openCompare() },
+      { group: 'This resume', label: 'Re-check the fit against my library', run: () => { showView('improve'); assessFit(); } }
+    );
+  }
+  list.push(
+    { group: 'App', label: 'Change theme', run: cycleTheme },
+    { group: 'App', label: 'Settings', run: () => showDialog('settings-dialog') },
+    { group: 'App', label: 'Keyboard shortcuts', hint: '?', run: showKeys }
+  );
+  for (const e of history.slice(0, 15)) list.push({ group: 'Open resume', label: historyLabel(e), hint: shortDate(e.at), run: () => { loadEntry(e); setQuestions([]); showView('resume'); } });
+  return list;
+}
+
+function renderPalette() {
+  const q = $('palette-q').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  paletteItems = paletteCommands().filter((c) => q.every((w) => `${c.group} ${c.label}`.toLowerCase().includes(w)));
+  paletteActive = Math.min(paletteActive, Math.max(0, paletteItems.length - 1));
+  let last = '';
+  $('palette-list').innerHTML = paletteItems.map((c, i) => {
+    const head = c.group !== last ? `<li class="palette-group" role="presentation">${esc(c.group)}</li>` : '';
+    last = c.group;
+    return `${head}<li role="option" id="pal-${i}" data-i="${i}" aria-selected="${i === paletteActive}">${esc(c.label)}${c.hint ? `<kbd>${esc(c.hint)}</kbd>` : ''}</li>`;
+  }).join('') || '<li class="palette-none" role="presentation">Nothing matches.</li>';
+  $('palette-q').setAttribute('aria-activedescendant', paletteItems.length ? `pal-${paletteActive}` : '');
+  $('palette-list').querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+}
+
+function openPalette() {
+  if ($('app').hidden) return;
+  $('palette-q').value = '';
+  paletteActive = 0;
+  renderPalette();
+  showDialog('palette');
+  $('palette-q').focus();
+}
+
+function runPalette(i) {
+  const item = paletteItems[i];
+  if (!item) return;
+  $('palette').close();
+  setTimeout(item.run, 0);
+}
+
+function wireDesktop() {
+  for (const k of document.querySelectorAll('kbd[data-key]')) {
+    const key = k.dataset.key;
+    k.textContent = /^\d$/.test(key) ? `${ALT} ${key}` : `${MOD} ${key}`;
+  }
+  for (const b of document.querySelectorAll('.icon-btn[aria-label]')) b.title = b.getAttribute('aria-label');
+  $('open-palette').addEventListener('click', openPalette);
+  $('side-palette').addEventListener('click', openPalette);
+  $('side-keys').addEventListener('click', showKeys);
+  $('palette-q').addEventListener('input', () => { paletteActive = 0; renderPalette(); });
+  $('palette-q').addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      paletteActive = (paletteActive + (e.key === 'ArrowDown' ? 1 : -1) + paletteItems.length) % Math.max(1, paletteItems.length);
+      renderPalette();
+    } else if (e.key === 'Enter') { e.preventDefault(); runPalette(paletteActive); }
+  });
+  $('palette-list').addEventListener('click', (e) => { const li = e.target.closest('[data-i]'); if (li) runPalette(Number(li.dataset.i)); });
+  $('palette-list').addEventListener('mousemove', (e) => {
+    const li = e.target.closest('[data-i]');
+    if (li && Number(li.dataset.i) !== paletteActive) { paletteActive = Number(li.dataset.i); for (const o of $('palette-list').querySelectorAll('[data-i]')) o.setAttribute('aria-selected', String(o === li)); }
+  });
+  $('palette').addEventListener('click', (e) => { if (e.target === $('palette')) $('palette').close(); });
+
+  document.addEventListener('keydown', (e) => {
+    if ($('app').hidden) return;
+    const mod = IS_MAC ? e.metaKey : e.ctrlKey;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+    const open = document.querySelector('dialog[open]');
+    if (mod && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); if ($('palette').open) $('palette').close(); else openPalette(); return; }
+    if (open) return;
+    if (e.altKey && !mod && /^Digit[1-6]$/.test(e.code)) { e.preventDefault(); showView(VIEW_KEYS[Number(e.code.slice(5)) - 1]); return; }
+    if (mod && !e.altKey && current) {
+      const k = e.key.toLowerCase();
+      if (k === 's' && !e.shiftKey) { e.preventDefault(); $('pdf').click(); return; }
+      if (k === 'c' && e.shiftKey) { e.preventDefault(); writeClipboard(current.text, 'Copied the full resume.'); return; }
+    }
+    if (mod && e.key === '/') { e.preventDefault(); showKeys(); return; }
+    if (typing || mod || e.altKey) return;
+    if (e.key === '/' && current) { e.preventDefault(); askFor(''); }
+    else if (e.key === '?') { e.preventDefault(); showKeys(); }
+  });
+
+  // Drop a posting onto the Tailor page: text from a browser, or a plain text file.
+  const zone = $('v-tailor');
+  const hasPayload = (e) => [...(e.dataTransfer?.types || [])].some((t) => t === 'Files' || t === 'text/plain');
+  zone.addEventListener('dragover', (e) => { if (!hasPayload(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; zone.classList.add('dragging'); });
+  zone.addEventListener('dragleave', (e) => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('dragging'); });
+  zone.addEventListener('drop', async (e) => {
+    zone.classList.remove('dragging');
+    if (!hasPayload(e)) return;
+    e.preventDefault();
+    const file = [...(e.dataTransfer.files || [])].find((f) => /^text\/|\.(txt|md|text)$/i.test(f.type + f.name));
+    if (file) acceptPasted(await file.text());
+    else if (e.dataTransfer.files?.length) toast('Drop a text file, or text copied from the posting.');
+    else acceptPasted(e.dataTransfer.getData('text/plain'));
+  });
+}
+
 /* ---------- history ---------- */
 
 function renderHistory() {
@@ -1455,6 +1608,7 @@ async function init() {
   $('sum-options').addEventListener('click', (e) => { const li = e.target.closest('li[data-i]'); if (li && e.target.closest('[data-sum]')) useSummary(Number(li.dataset.i)); });
   $('open-improve').addEventListener('click', () => showView('improve'));
   $('open-history').addEventListener('click', () => showView('history'));
+  wireDesktop();
   $('open-compare-top').addEventListener('click', () => openCompare());
   $('open-compare').addEventListener('click', () => openCompare());
   $('kw-chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-k]'); if (b) openCompare(Number(b.dataset.k)); });

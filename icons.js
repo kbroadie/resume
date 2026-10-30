@@ -6,6 +6,8 @@ const PATHS = {
   send: '<path d="M12 19V6M6.5 11.5L12 6l5.5 5.5"/>',
   gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l3.8-5"/><path d="M12 17h.01"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+  command: '<path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
   download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
