@@ -15,11 +15,12 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preload" href="fonts/LibertinusSerif-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/LibertinusSerif-Semibold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/LibertinusSans-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <script>
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=22">
+  <link rel="stylesheet" href="styles.css?v=23">
 </head>
 <body>
   <header class="appbar">
@@ -49,11 +50,11 @@
     </section>
 
     <div id="app" hidden>
-      <!-- Tailor: the link is the default; pasting is the fallback -->
+      <!-- Tailor: paste the posting. Reading a posting from its link is switched off for now (LINK_READING in app.js). -->
       <section id="v-tailor" class="view" data-view="tailor">
-        <header class="view-title"><i data-icon="pencil"></i><div><h2>Tailor a resume</h2><p>Start with the link to the posting.</p></div></header>
+        <header class="view-title"><i data-icon="pencil"></i><div><p class="kicker">New resume</p><h2>Tailor a resume</h2></div></header>
         <form id="gen" class="tailor" novalidate>
-          <div class="field">
+          <div class="field" id="link-field" hidden>
             <label for="applink"><i data-icon="link"></i>Application link</label>
             <div class="input-wrap">
               <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Link to the job posting">
@@ -63,15 +64,24 @@
           </div>
 
           <div class="posting-source" id="posting-source">
-            <div id="paste-empty" class="paste-row">
-              <textarea id="paste-catch" rows="1" aria-label="Paste the posting text here" placeholder="No link? Paste the posting text here" spellcheck="false"></textarea>
-              <button id="paste" type="button" class="chip-btn"><i data-icon="clipboard"></i>Paste</button>
+            <div id="paste-empty" class="drop">
+              <span class="drop-icon"><i data-icon="clipboard"></i></span>
+              <h3 class="drop-title">Paste the job posting</h3>
+              <p class="hint">Copy the whole posting on its page, then tap the button. Nothing here needs editing.</p>
+              <button id="paste" type="button" class="btn primary block"><i data-icon="clipboard"></i><span>Paste from clipboard</span></button>
+              <textarea id="paste-catch" rows="1" aria-label="Paste the posting text here" placeholder="Or press and hold here, then choose Paste" spellcheck="false"></textarea>
             </div>
             <div id="paste-done" class="accepted" role="status" hidden>
-              <i data-icon="check"></i>
-              <span id="posting-summary"></span>
-              <button id="view-posting" type="button" class="chip-btn">View</button>
-              <button id="clear-posting" type="button" class="chip-btn">Clear</button>
+              <span class="accepted-mark"><i data-icon="check"></i></span>
+              <div class="accepted-text">
+                <strong>Posting added</strong>
+                <span id="posting-summary"></span>
+                <em id="posting-preview"></em>
+              </div>
+              <div class="accepted-actions">
+                <button id="view-posting" type="button" class="chip-btn">View</button>
+                <button id="clear-posting" type="button" class="chip-btn">Clear</button>
+              </div>
             </div>
           </div>
 
@@ -109,7 +119,7 @@
           <i data-icon="file" class="empty-icon"></i>
           <div class="flourish-row" data-flourish></div>
           <h2>No resume yet</h2>
-          <p>Add a link to a posting on the Tailor tab and your resume will appear here.</p>
+          <p>Paste a job posting on the Tailor tab and your resume will appear here.</p>
           <button type="button" class="btn tonal" data-go="tailor"><i data-icon="pencil"></i>Go to Tailor</button>
         </div>
         <div id="resume-body" hidden>
@@ -349,6 +359,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=23"></script>
 </body>
 </html>

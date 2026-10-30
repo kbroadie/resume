@@ -2,12 +2,16 @@
    Typography follows Bringhurst, The Elements of Typographic Style: one type family in several cuts
    (Libertinus Serif, with its Display cut for large sizes), real small caps for labels, old-style figures in
    running text and tabular lining figures for data, a restrained scale, and leading near 140% on a measure of
-   roughly 66 characters. Mobile first: base rules are the phone layout; wider screens only add. */
+   roughly 66 characters. Libertinus Sans, from the same family, sets the controls (labels, buttons, chips, tabs,
+   hints) so reading text and doing things look different. Mobile first: base rules are the phone layout; wider screens only add. */
 
 @font-face { font-family: "Libertinus Serif"; src: url("fonts/LibertinusSerif-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "Libertinus Serif"; src: url("fonts/LibertinusSerif-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
 @font-face { font-family: "Libertinus Serif"; src: url("fonts/LibertinusSerif-Semibold.woff2") format("woff2"); font-weight: 600 700; font-style: normal; font-display: swap; }
 @font-face { font-family: "Libertinus Serif"; src: url("fonts/LibertinusSerif-SemiboldItalic.woff2") format("woff2"); font-weight: 600 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Libertinus Sans"; src: url("fonts/LibertinusSans-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Libertinus Sans"; src: url("fonts/LibertinusSans-Italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Libertinus Sans"; src: url("fonts/LibertinusSans-Bold.woff2") format("woff2"); font-weight: 600 700; font-style: normal; font-display: swap; }
 @font-face { font-family: "Libertinus Display"; src: url("fonts/LibertinusSerifDisplay-Regular.woff2") format("woff2"); font-weight: 400 700; font-style: normal; font-display: swap; }
 
 :root {
@@ -29,6 +33,7 @@
   --shadow: 0 1px 2px rgba(29, 27, 23, .07), 0 8px 22px rgba(29, 27, 23, .06);
 
   --text: "Libertinus Serif", "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: "Libertinus Sans", "Gill Sans", "Gill Sans MT", Optima, Candara, "Segoe UI", sans-serif;
   --display: "Libertinus Display", "Libertinus Serif", "Iowan Old Style", Palatino, Georgia, serif;
 
   /* Scale: a major third (1.25) from a 17px base. */
@@ -461,3 +466,64 @@ mark.k-active { outline: 2px solid var(--accent); background: color-mix(in srgb,
   #v-compare { height: calc(100dvh - var(--appbar) - var(--tabbar) - 3rem); }
 }
 @media print { #v-compare, #v-improve, .flourish-row { display: none !important; } }
+
+
+/* ---------- Type mix: the serif reads, the sans acts ----------
+   Display serif for titles and questions, text serif for prose and the resume, and Libertinus Sans (regular and
+   bold) for labels, buttons, chips, tabs, counts and hints. Sans small caps carry the labels; bold carries actions. */
+body { --track-caps: .07em; }
+label, .label, h3, .chip-btn, .toggle span, .pill, .dl-label, .facts dt, .q-progress, .tag, .seg button, .tabbar button {
+  font-family: var(--sans); font-weight: 700;
+}
+.btn, .kw button, .count-chip, .toast, .toast button { font-family: var(--sans); font-weight: 700; letter-spacing: .015em; }
+.btn { font-size: .94rem; }
+.btn small, .dl-group .btn small { font-weight: 400; }
+.hint, .msg, .count, .sec-meta, .fold-meta, .res-title span, .view-title p, .hcard .meta, .recent .cards li span:last-child,
+.banner div, .ats-row small, .sug .why, .sug .was, .q-status, .cmp-detail, .sys-evidence, .facts dd { font-family: var(--sans); font-weight: 400; }
+.hint, .msg, .view-title p, .res-title span { font-size: .84rem; line-height: 1.4; }
+.fold summary { font-family: var(--text); font-weight: 600; font-size: 1.04rem; }
+.res-title span { font-size: .8rem; }
+.hcard strong, .banner strong { font-family: var(--text); font-weight: 600; }
+.tabbar button { font-size: .72rem; letter-spacing: .05em; }
+.badge { font-family: var(--sans); }
+.q-options .btn { font-family: var(--text); font-weight: 400; font-size: var(--step-0); letter-spacing: 0; }
+.paper .copy-sec, .copy-sec { font-family: var(--sans); font-weight: 700; }
+input[type="text"], input[type="password"], select, textarea { font-family: var(--text); }
+select { font-family: var(--sans); font-weight: 400; font-size: .94rem; }
+.sec-head h3, .sys-name, .pane h3 { font-family: var(--display); }
+.pane h3 { font-family: var(--sans); font-weight: 700; }
+.view-title h2 { font-weight: 400; }
+.view-title .kicker { font-family: var(--sans); font-weight: 700; font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 3px; font-variant-caps: normal; }
+.accepted-text strong { font-family: var(--display); }
+
+/* Tailor: a single, obvious first step */
+.posting-source { margin-bottom: var(--s5); }
+.drop {
+  display: grid; justify-items: center; text-align: center; gap: var(--s2); padding: var(--s5) var(--s4) var(--s4);
+  background: var(--surface); border: 1.5px dashed var(--line-strong); border-radius: calc(var(--r) + 4px);
+}
+.drop-icon { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.drop-icon .ico { width: 1.7rem; height: 1.7rem; }
+h3.drop-title { margin: var(--s1) 0 0; font-family: var(--display); font-weight: 400; font-variant-caps: normal; letter-spacing: 0; font-size: var(--step-2); line-height: 1.1; color: var(--fg); text-wrap: balance; }
+.drop .hint { max-width: 22rem; margin: 0 0 var(--s2); }
+.drop .btn.block { min-height: 3.25rem; font-size: 1rem; }
+.drop textarea {
+  margin: var(--s2) 0 0; height: 2.6rem; min-height: 2.6rem; overflow: hidden; text-align: center; font-family: var(--sans); font-size: .84rem;
+  border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; padding-inline: 0;
+}
+.drop textarea:focus { background: var(--bg); outline-offset: -2px; border-radius: var(--r-sm); }
+.accepted {
+  display: grid; grid-template-columns: auto 1fr; gap: var(--s3); align-items: start; padding: var(--s4);
+  background: var(--ok-soft); color: var(--ok); border-radius: calc(var(--r) + 4px); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);
+}
+.accepted-mark { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; background: var(--ok); color: var(--ok-soft); }
+.accepted-mark svg { width: 1.3rem; height: 1.3rem; stroke-width: 2.2; }
+.accepted-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.accepted-text strong { font-size: var(--step-1); font-weight: 400; line-height: 1.15; }
+.accepted-text span { flex: none; font-family: var(--sans); font-weight: 700; font-size: .8rem; letter-spacing: .02em; font-variant-numeric: lining-nums tabular-nums; }
+.accepted-text em { font-style: italic; color: var(--fg); opacity: .8; font-size: .95rem; line-height: 1.3; margin-top: var(--s1);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.accepted-actions { grid-column: 2; display: flex; gap: var(--s2); }
+.accepted .chip-btn { background: var(--surface); }
+.tailor .field > label { margin-bottom: 2px; }
+.cta .btn.block { min-height: 3.4rem; font-size: 1.02rem; }

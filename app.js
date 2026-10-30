@@ -1,19 +1,19 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=22';
-import { buildPdf, docFromText } from './pdf.js?v=22';
+} from './lib.js?v=23';
+import { buildPdf, docFromText } from './pdf.js?v=23';
 import {
   SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=22';
-import { icon, hydrateIcons } from './icons.js?v=22';
+} from './ats.js?v=23';
+import { icon, hydrateIcons } from './icons.js?v=23';
 import {
   emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=22';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=22';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=22';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=22';
+} from './knowledge.js?v=23';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=23';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=23';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=23';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -300,9 +300,13 @@ function renderBadges() {
   qb.textContent = String(open);
 }
 
-/* ---------- the posting: read from the link by default, pasted as a fallback ---------- */
+/* ---------- the posting: pasted from the clipboard (reading from a link is switched off for now) ---------- */
 
-// The posting is never edited on this page. It is either read from the link or accepted from the clipboard,
+// Reading a posting from its link has not worked reliably, so the link field is hidden. The code stays; set this
+// to true to bring the field back.
+const LINK_READING = false;
+
+// The posting is never edited on this page. It is accepted from the clipboard (or read from a link, when that is on),
 // and the page only shows that it arrived. View shows the text read-only.
 let posting = { text: '', source: '', link: '', title: '', company: '', applyUrl: '', systemHint: '' };   // source: 'link' | 'pasted' | ''
 
@@ -316,7 +320,7 @@ function saveDraft() {
 function restoreDraft() {
   const d = store.json(DRAFT_STORE, null);
   if (d) {
-    $('applink').value = d.applink || '';
+    $('applink').value = LINK_READING ? d.applink || '' : '';
     if (d.posting?.text) posting = { text: '', source: '', link: '', title: '', company: '', ...d.posting };
     $('notes').value = d.notes || '';
     $('shorttitles').checked = Boolean(d.shorttitles);
@@ -332,7 +336,8 @@ function renderPosting() {
   $('paste-done').hidden = !has;
   if (has) {
     const n = wordCount(posting.text);
-    $('posting-summary').textContent = posting.source === 'link' ? `Read from the link. ${n} words.` : `Pasted from your clipboard. ${n} words.`;
+    $('posting-summary').textContent = `${n.toLocaleString('en-US')} words, ${posting.text.length.toLocaleString('en-US')} characters${posting.source === 'link' ? ', read from the link' : ''}`;
+    $('posting-preview').textContent = posting.text.split('\n').map((l) => l.trim()).find((l) => l.length > 3)?.slice(0, 140) || '';
   }
   updateLinkUi();
 }
@@ -347,6 +352,7 @@ function updateLinkUi() {
 
 function setPosting(text, source, extra = {}) {
   posting = { text: String(text).trim(), source: text ? source : '', link: extra.link || '', title: extra.title || '', company: extra.company || '', applyUrl: extra.applyUrl || '', systemHint: extra.systemHint || '' };
+  if (text) $('gen-msg').textContent = '';
   renderPosting();
   saveDraft();
 }
@@ -409,11 +415,11 @@ async function generate(event) {
   event.preventDefault();
   const msg = $('gen-msg');
   msg.textContent = '';
-  const rawLink = $('applink').value.trim();
+  const rawLink = LINK_READING ? $('applink').value.trim() : '';
   const link = normalizeUrl(rawLink);
   if (rawLink && !link) { msg.textContent = 'That application link does not look right. Use a full web address.'; $('applink').focus(); return; }
   if (link) $('applink').value = link;
-  if (!posting.text && !link) { msg.textContent = 'Add the link to the posting, or paste its text.'; $('applink').focus(); return; }
+  if (!posting.text && !link) { msg.textContent = 'Paste the job posting first.'; $('paste').focus(); return; }
   if (!$('location').value) { msg.textContent = 'Choose a location for this resume.'; $('location').focus(); return; }
 
   const opts = { includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
@@ -1151,6 +1157,7 @@ async function init() {
   renderHistory();
 
   try { await loadProfile(); } catch (err) { $('login-msg').textContent = err.message; }
+  $('link-field').hidden = !LINK_READING;
   restoreDraft();
   await pullKnowledge();
 

@@ -1,7 +1,7 @@
 // Applicant tracking: which system takes the application, what it typically wants, how well the resume suits
 // an automated reader, and rephrasing suggestions that stay inside the library.
 
-import { keywordCoverage, webFetchTool, splitProfile, yearsSince } from './lib.js?v=22';
+import { keywordCoverage, webFetchTool, splitProfile, yearsSince } from './lib.js?v=23';
 
 /* ---------- application systems ---------- */
 
