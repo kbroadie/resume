@@ -4,10 +4,13 @@ A mobile-first web app that tailors Kevin Broadie's resume to a pasted job posti
 
 ## Using it
 
-Five tabs along the bottom keep each task on one screen:
+Five tabs along the bottom keep each task on one screen (History is the clock in the top bar):
 
 - **Tailor:** the application link is the default. Add it and tap Tailor resume, and Claude reads the posting from the page first (using Anthropic's web fetch tool, limited to that site). Tap Read beside the link to do only that step. If there is no link, or the page needs a login, paste the posting instead: tap Paste, or press and hold in the dashed box. The page does not edit the posting; it only shows that the text arrived (a green check and the word count), with View to read it and Clear to start over. Pages that need a login, or organizations that have not allowed web fetch, fall back to pasting. Your draft is saved, so a reload never loses it. Ctrl or Cmd + Enter also tailors.
-- **Resume:** the result, with word and page count, a keyword match against the posting's own terms, and a checks summary. Copy the whole resume, or tap the small Copy button on a section or a single job to fill one application field. Download the text or a typeset PDF, or Edit the text by hand (with Revert). The PDF is built from your edits too. Below the resume: suggested rephrasings, an applicant tracking check, the keyword match, and the application system. Open application takes you to the link you saved.
+- **Resume:** the result, with word and page count, the application system, and a checks summary. Copy the whole resume, or tap the small Copy button on a section or a single job to fill one application field. The **Download** group holds the two download links, Text (.txt) and PDF (.pdf); the PDF is typeset and is built from your edits too. Edit changes the text by hand (with Revert). Open application takes you to the link you saved. Improve and Compare lead to the next steps.
+- **Improve:** keyword coverage as a meter and chips (green is in the resume, amber is missing). Right after tailoring, the app looks for natural rewrites that work the missing keywords into lines your library already supports, and they appear here as **Keyword rewrites** (Apply, or Dismiss; Apply all and Find more are at the top of the list). Settings has a switch for that automatic pass. Terms your library cannot support are listed under "Not in your library" so you can teach them if true. The same tab holds the **Summary** writer and the applicant tracking check.
+- **Summary:** Write summary options returns up to three short summaries (Impact, Skills, Brief). Each uses only facts from your library; numbers must come from your own entries, and any option that adds one is dropped. Use this swaps it into the resume, and Restore brings the original back.
+- **Compare:** the full job posting and the draft resume side by side (Posting, Both, or Resume). Keywords are highlighted green where they appear and amber where they do not; tap a chip to jump between occurrences, or Find wording to ask for a rewrite of a missing term. Postings from before this feature can be pasted in from the Compare view.
 - **Questions:** one at a time. Save an answer as a fact or a preference, pick between wordings, skip, or choose Don't ask again. Answered questions never come back.
 - **Library:** merge saved answers into the master profile, or teach it something directly.
 - **History:** every resume you tailor, on this device only, with its status (Drafted, Applied, Interviewing, Offer, Rejected, Withdrawn), application link, and keyword match.
@@ -85,6 +88,8 @@ Settings > Pages > Deploy from a branch > `main` / root. The page is public, and
 ## Files
 
 - `index.html`, `styles.css`, `app.js`: the interface
+- `icons.js`: the inline icon set and the flourish divider
+- `favicon.svg`, `favicon.ico`, `apple-touch-icon.png`, `icon-*.png`: the icon set (a serif R with a check mark); `manifest.webmanifest` lists the sizes, including a maskable one
 - `lib.js`: prompt, schema, validation, and rendering (no DOM)
 - `knowledge.js`: saved answers, merging, and question filtering
 - `sync.js`: saves `data/knowledge.json` to GitHub
@@ -110,5 +115,5 @@ The app and the PDF resumes follow Bringhurst's *The Elements of Typographic Sty
 - **"Find and click Apply":** the page is read, not driven, so only an Apply link whose address appears in the page can be followed. Buttons that open a form with scripts cannot be. The system sheet says so, and lets you pick the system yourself.
 - **Check the form:** reads the application page and lists its fields, required marks, accepted file types, questions, and notes such as character limits. Many forms load only after sign-in or with scripts, in which case it tells you so.
 - **Applicant tracking check:** local checks that do not use the model: contact details in the body, standard headings, one date format, length, plain characters, whether keywords appear in job bullets and not only the skills list, and whether the posting's title is echoed.
-- **Suggest more:** the first pass offers a few rewordings. "Suggest more for the missing keywords" goes after every posting term the resume still lacks, asks for natural sentences (swapping a near-synonym already in the line, one term per bullet, spread across bullets, no stacking), and lists any term your library cannot support so you can teach it if it is true. It works on any resume in History.
+- **Find more rewrites:** the first pass and the automatic pass offer rewordings. "Find more" on the Improve tab goes after every posting term the resume still lacks, asks for natural sentences (swapping a near-synonym already in the line, one term per bullet, spread across bullets, no stacking), and lists any term your library cannot support so you can teach it if it is true. It works on any resume in History.
 - **Suggested rephrasings:** the model may propose rewording a bullet (or the summary) to use a posting term, only where your library already supports it. The app drops any suggestion that does not replace a line that is really in the resume, whose keyword is not already in your library, that adds more than two new words, or that adds a number. Apply swaps it in; Dismiss removes it.

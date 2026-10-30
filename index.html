@@ -10,33 +10,33 @@
   <meta name="apple-mobile-web-app-title" content="Resume Advisor">
   <title>Resume Advisor</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preload" href="fonts/LibertinusSerif-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/LibertinusSerif-Semibold.woff2" as="font" type="font/woff2" crossorigin>
   <script>
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=20">
+  <link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body>
   <header class="appbar">
     <div class="brand">
-      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor"/><path d="M10 8h8l5 5v11a1 1 0 0 1-1 1H10a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="none" stroke="var(--accent-fg)" stroke-width="1.8" stroke-linejoin="round"/><path d="M12.5 19l2.2 2.2 4.3-4.6" fill="none" stroke="var(--accent-fg)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <img class="logo" src="favicon.svg" alt="" width="28" height="28">
       <h1>Resume Advisor</h1>
     </div>
     <div class="appbar-actions">
+      <button id="open-history" class="icon-btn" type="button" aria-label="History of tailored resumes" hidden><i data-icon="history"></i></button>
       <button id="theme" class="icon-btn" type="button" aria-label="Theme: automatic. Tap to change."></button>
-      <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-      </button>
+      <button id="open-settings" class="icon-btn" type="button" aria-label="Settings" hidden><i data-icon="gear"></i></button>
     </div>
   </header>
 
   <main id="main">
     <section id="login" class="login" aria-labelledby="login-h">
-      <h2 id="login-h">Sign in</h2>
-      <p class="lede">Enter your Anthropic API key. It stays in this browser and is sent only to Anthropic.</p>
+      <header class="view-title"><i data-icon="shield"></i><div><h2 id="login-h">Sign in</h2><p>Your Anthropic API key stays in this browser and is sent only to Anthropic.</p></div></header>
       <form id="login-form" autocomplete="off">
         <div class="field">
           <div class="field-head"><label for="key">API key</label><button id="showkey" type="button" class="chip-btn">Show</button></div>
@@ -51,9 +51,10 @@
     <div id="app" hidden>
       <!-- Tailor: the link is the default; pasting is the fallback -->
       <section id="v-tailor" class="view" data-view="tailor">
+        <header class="view-title"><i data-icon="pencil"></i><div><h2>Tailor a resume</h2><p>Start with the link to the posting.</p></div></header>
         <form id="gen" class="tailor" novalidate>
           <div class="field">
-            <label for="applink">Application link</label>
+            <label for="applink"><i data-icon="link"></i>Application link</label>
             <div class="input-wrap">
               <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Link to the job posting">
               <button id="fetch" type="button" class="chip-btn" aria-label="Read the posting from this link" hidden>Read</button>
@@ -64,10 +65,10 @@
           <div class="posting-source" id="posting-source">
             <div id="paste-empty" class="paste-row">
               <textarea id="paste-catch" rows="1" aria-label="Paste the posting text here" placeholder="No link? Paste the posting text here" spellcheck="false"></textarea>
-              <button id="paste" type="button" class="chip-btn">Paste</button>
+              <button id="paste" type="button" class="chip-btn"><i data-icon="clipboard"></i>Paste</button>
             </div>
             <div id="paste-done" class="accepted" role="status" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>
+              <i data-icon="check"></i>
               <span id="posting-summary"></span>
               <button id="view-posting" type="button" class="chip-btn">View</button>
               <button id="clear-posting" type="button" class="chip-btn">Clear</button>
@@ -90,12 +91,13 @@
           </div>
 
           <div id="recent" class="recent" hidden>
-            <h3>Recent</h3>
+            <div class="flourish-row" data-flourish></div>
+            <h3><i data-icon="history"></i>Recent</h3>
             <ul id="recent-list" class="cards"></ul>
           </div>
 
           <div class="cta">
-            <button id="go" type="submit" class="btn primary block">Tailor resume</button>
+            <button id="go" type="submit" class="btn primary block"><i data-icon="sparkle"></i><span>Tailor resume</span></button>
             <p id="gen-msg" class="msg" role="status" aria-live="polite"></p>
           </div>
         </form>
@@ -104,14 +106,16 @@
       <!-- Resume -->
       <section id="v-resume" class="view" data-view="resume" hidden>
         <div id="resume-empty" class="empty">
+          <i data-icon="file" class="empty-icon"></i>
+          <div class="flourish-row" data-flourish></div>
           <h2>No resume yet</h2>
           <p>Add a link to a posting on the Tailor tab and your resume will appear here.</p>
-          <button type="button" class="btn tonal" data-go="tailor">Go to Tailor</button>
+          <button type="button" class="btn tonal" data-go="tailor"><i data-icon="pencil"></i>Go to Tailor</button>
         </div>
         <div id="resume-body" hidden>
           <div class="res-head">
             <div class="res-title"><strong id="res-title"></strong><span id="res-sub"></span></div>
-            <a id="res-link" class="chip-btn" target="_blank" rel="noopener noreferrer" hidden>Open application</a>
+            <a id="res-link" class="chip-btn" target="_blank" rel="noopener noreferrer" hidden><i data-icon="external"></i>Application</a>
           </div>
           <div class="stats">
             <span id="stat-words" class="pill"></span>
@@ -119,43 +123,114 @@
             <button id="stat-checks" type="button" class="pill pill-btn"></button>
             <button id="stat-edited" type="button" class="pill pill-btn" hidden>Edited. Revert</button>
           </div>
+
           <div class="toolbar" role="toolbar" aria-label="Resume actions">
-            <button id="copy" type="button" class="btn primary">Copy</button>
-            <button id="download" type="button" class="btn">Text</button>
-            <button id="pdf" type="button" class="btn">PDF</button>
-            <button id="edit" type="button" class="btn">Edit</button>
+            <button id="copy" type="button" class="btn primary"><i data-icon="copy"></i><span>Copy all</span></button>
+            <button id="edit" type="button" class="btn"><i data-icon="edit"></i><span>Edit</span></button>
           </div>
+          <div class="dl-group" role="group" aria-label="Download this resume">
+            <span class="dl-label"><i data-icon="download"></i>Download</span>
+            <button id="download" type="button" class="btn" aria-label="Download as a text file"><i data-icon="download"></i><span>Text <small>.txt</small></span></button>
+            <button id="pdf" type="button" class="btn" aria-label="Download as a PDF"><i data-icon="download"></i><span>PDF <small>.pdf</small></span></button>
+          </div>
+
+          <div class="next-steps">
+            <button id="open-improve" type="button" class="btn tonal"><i data-icon="sparkle"></i><span>Improve <b id="improve-count" class="count-chip" hidden></b></span></button>
+            <button id="open-compare-top" type="button" class="btn tonal"><i data-icon="compare"></i><span>Compare</span></button>
+          </div>
+
           <article id="resume" class="paper"></article>
           <textarea id="resume-edit" class="paper-edit" aria-label="Edit resume text" hidden spellcheck="true"></textarea>
           <p class="hint tap-hint">Tap Copy beside a section or a job to fill one form field at a time.</p>
 
-          <details class="fold" id="sug-fold">
-            <summary><span>Suggested rephrasings</span><span id="sug-count" class="fold-meta"></span></summary>
-            <p class="hint">Each one uses your own library, worded to match the posting. Apply swaps it into the resume.</p>
-            <ul id="suggestions" class="cards"></ul>
-            <button id="sug-more" type="button" class="btn tonal block">Suggest more for the missing keywords</button>
-            <p id="sug-status" class="hint" role="status"></p>
-            <div id="sug-unsupported" class="hint"></div>
-          </details>
-          <details class="fold" id="ats-fold">
-            <summary><span>Applicant tracking check</span><span id="ats-count" class="fold-meta"></span></summary>
-            <ul id="ats-list" class="cards"></ul>
-          </details>
-          <details class="fold" id="kw-fold">
-            <summary><span>Keyword match</span><span id="kw-summary" class="fold-meta"></span></summary>
-            <div id="kw-chips" class="kw"></div>
-            <p class="hint">Keywords are the posting's own terms. A missing one only helps if it is true for you; add it to your library with Teach.</p>
-          </details>
           <details class="fold">
-            <summary><span>Fit to the posting</span></summary>
+            <summary><span><i data-icon="lines"></i>Fit to the posting</span></summary>
             <p id="fit" class="fit"></p>
           </details>
+        </div>
+      </section>
+
+      <!-- Improve: keyword rewrites, summary, checks -->
+      <section id="v-improve" class="view" data-view="improve" hidden>
+        <div id="improve-empty" class="empty">
+          <i data-icon="sparkle" class="empty-icon"></i>
+          <div class="flourish-row" data-flourish></div>
+          <h2>Nothing to improve yet</h2>
+          <p>Tailor a resume first. Keyword rewrites, a summary writer, and the applicant tracking check appear here.</p>
+          <button type="button" class="btn tonal" data-go="tailor"><i data-icon="pencil"></i>Go to Tailor</button>
+        </div>
+        <div id="improve-body" hidden>
+          <header class="view-title"><i data-icon="sparkle"></i><div><h2>Improve</h2><p id="improve-sub"></p></div></header>
+
+          <section class="sec" aria-labelledby="cov-h">
+            <div class="sec-head"><i data-icon="target"></i><h3 id="cov-h">Keyword coverage</h3><span id="cov-text" class="sec-meta"></span></div>
+            <div class="meter" role="img" aria-label="Keyword coverage"><i id="cov-fill"></i></div>
+            <div id="kw-chips" class="kw"></div>
+            <button id="open-compare" type="button" class="btn tonal block"><i data-icon="compare"></i>Compare posting and resume</button>
+          </section>
+
+          <div class="flourish-row" data-flourish></div>
+
+          <section class="sec" aria-labelledby="sug-h">
+            <div class="sec-head"><i data-icon="edit"></i><h3 id="sug-h">Keyword rewrites</h3><span id="sug-count" class="sec-meta"></span></div>
+            <p class="hint">Your own library, reworded to match the posting. Apply swaps a rewrite into the resume.</p>
+            <ul id="suggestions" class="cards"></ul>
+            <div class="row2">
+              <button id="sug-more" type="button" class="btn tonal"><i data-icon="sparkle"></i><span>Find more</span></button>
+              <button id="sug-all" type="button" class="btn"><i data-icon="check"></i><span>Apply all</span></button>
+            </div>
+            <p id="sug-status" class="hint" role="status"></p>
+            <div id="sug-unsupported" class="hint"></div>
+          </section>
+
+          <div class="flourish-row" data-flourish></div>
+
+          <section class="sec" aria-labelledby="sum-h">
+            <div class="sec-head"><i data-icon="lines"></i><h3 id="sum-h">Summary</h3></div>
+            <blockquote id="sum-current" class="quote"></blockquote>
+            <button id="sum-gen" type="button" class="btn tonal block"><i data-icon="sparkle"></i><span>Write summary options</span></button>
+            <p id="sum-status" class="hint" role="status"></p>
+            <ul id="sum-options" class="cards"></ul>
+            <button id="sum-restore" type="button" class="chip-btn" hidden>Restore the original summary</button>
+          </section>
+
+          <div class="flourish-row" data-flourish></div>
+
+          <section class="sec" aria-labelledby="ats-h">
+            <div class="sec-head"><i data-icon="shield"></i><h3 id="ats-h">Applicant tracking check</h3><span id="ats-count" class="sec-meta"></span></div>
+            <ul id="ats-list" class="cards"></ul>
+          </section>
+
+          <section class="sec" aria-labelledby="sys-h">
+            <div class="sec-head"><i data-icon="building"></i><h3 id="sys-h">Application system</h3></div>
+            <button id="sys-open" type="button" class="btn block"><i data-icon="building"></i><span id="sys-open-text">Check which system takes this application</span></button>
+          </section>
+        </div>
+      </section>
+
+      <!-- Compare: the posting and the draft side by side -->
+      <section id="v-compare" class="view" data-view="compare" hidden>
+        <div class="compare-bar">
+          <button id="compare-back" type="button" class="chip-btn"><i data-icon="back"></i>Back</button>
+          <div class="seg" role="group" aria-label="Show">
+            <button type="button" data-pane="posting" aria-pressed="false">Posting</button>
+            <button type="button" data-pane="both" aria-pressed="true">Both</button>
+            <button type="button" data-pane="resume" aria-pressed="false">Resume</button>
+          </div>
+        </div>
+        <div id="cmp-chips" class="kw kw-row"></div>
+        <p id="cmp-detail" class="hint cmp-detail" role="status"></p>
+        <div id="cmp-panes" class="panes" data-mode="both">
+          <article class="pane" id="cmp-posting"><h3><i data-icon="building"></i>Job posting</h3><div id="cmp-posting-body" class="pane-body"></div></article>
+          <article class="pane" id="cmp-resume"><h3><i data-icon="file"></i>Draft resume</h3><div id="cmp-resume-body" class="pane-body"></div></article>
         </div>
       </section>
 
       <!-- Questions -->
       <section id="v-questions" class="view" data-view="questions" hidden>
         <div id="q-empty" class="empty">
+          <i data-icon="question" class="empty-icon"></i>
+          <div class="flourish-row" data-flourish></div>
           <h2>No questions</h2>
           <p>After you tailor a resume, anything the advisor needs to know appears here, one question at a time.</p>
         </div>
@@ -166,7 +241,7 @@
           </div>
           <article id="q-card" class="q-card"></article>
           <div class="q-nav">
-            <button id="q-prev" type="button" class="btn ghost">Back</button>
+            <button id="q-prev" type="button" class="btn ghost"><i data-icon="back"></i>Back</button>
             <button id="q-next" type="button" class="btn ghost">Next</button>
           </div>
         </div>
@@ -175,30 +250,33 @@
 
       <!-- Library -->
       <section id="v-library" class="view" data-view="library" hidden>
+        <header class="view-title"><i data-icon="book"></i><div><h2>Library</h2><p>The facts every resume is built from.</p></div></header>
         <div id="merge-card" class="banner" hidden>
           <div><strong id="merge-title"></strong><span>Claude turns them into library entries. You review each change first.</span></div>
           <button id="merge" type="button" class="btn primary">Merge</button>
         </div>
         <details class="fold" open>
-          <summary><span>Teach the library</span></summary>
+          <summary><span><i data-icon="plus"></i>Teach the library</span></summary>
           <textarea id="teach" rows="3" aria-label="Teach the library something" placeholder="A fact, a correction, or a standing preference, in your own words"></textarea>
           <button id="teach-go" type="button" class="btn tonal block">Add and review</button>
         </details>
         <details class="fold">
-          <summary><span>Saved answers</span><span id="saved-count" class="fold-meta"></span></summary>
+          <summary><span><i data-icon="check"></i>Saved answers</span><span id="saved-count" class="fold-meta"></span></summary>
           <ul id="saved" class="cards"></ul>
         </details>
         <details class="fold">
-          <summary><span>Open questions about my profile</span><span id="oq-count" class="fold-meta"></span></summary>
+          <summary><span><i data-icon="question"></i>Open questions about my profile</span><span id="oq-count" class="fold-meta"></span></summary>
           <ul id="open-questions" class="cards"></ul>
         </details>
       </section>
 
       <!-- History -->
       <section id="v-history" class="view" data-view="history" hidden>
+        <header class="view-title"><i data-icon="history"></i><div><h2>History</h2><p>Resumes you have tailored, on this device.</p></div></header>
         <div id="history-empty" class="empty">
-          <h2>No applications yet</h2>
-          <p>Each resume you tailor is kept here on this device, with its application link and status.</p>
+          <i data-icon="history" class="empty-icon"></i>
+          <div class="flourish-row" data-flourish></div>
+          <p>Each resume you tailor is kept here, with its application link and status.</p>
         </div>
         <ul id="history" class="cards" hidden></ul>
       </section>
@@ -206,11 +284,11 @@
   </main>
 
   <nav id="tabbar" class="tabbar" aria-label="Sections" hidden>
-    <button type="button" data-view="tailor" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span>Tailor</span></button>
-    <button type="button" data-view="resume"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg><span>Resume</span></button>
-    <button type="button" data-view="questions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"/></svg><span>Questions</span><b id="badge-q" class="badge" hidden></b></button>
-    <button type="button" data-view="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5zM4 19.5V21h16v-4"/></svg><span>Library</span><b id="badge-l" class="badge" hidden></b></button>
-    <button type="button" data-view="history"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>History</span></button>
+    <button type="button" data-view="tailor" aria-current="page"><i data-icon="pencil"></i><span>Tailor</span></button>
+    <button type="button" data-view="resume"><i data-icon="file"></i><span>Resume</span></button>
+    <button type="button" data-view="improve"><i data-icon="sparkle"></i><span>Improve</span><b id="badge-i" class="badge" hidden></b></button>
+    <button type="button" data-view="questions"><i data-icon="question"></i><span>Questions</span><b id="badge-q" class="badge" hidden></b></button>
+    <button type="button" data-view="library"><i data-icon="book"></i><span>Library</span><b id="badge-l" class="badge" hidden></b></button>
   </nav>
 
   <!-- Settings -->
@@ -220,6 +298,7 @@
       <label for="model">Model</label>
       <select id="model"></select>
     </div>
+    <label class="toggle-row"><input id="auto-suggest" type="checkbox" checked><span>Find keyword rewrites automatically after tailoring</span></label>
     <h3>Sync to GitHub</h3>
     <p class="hint">Without a token, saved answers stay on this device. With one, they save to <code>data/knowledge.json</code> in the public <code>kbroadie/resume</code> repo, merged answers update <code>data/profile.json</code>, and it all follows you to every device. Anything saved there is public.</p>
     <p class="hint">Create a fine-grained token at github.com under Settings, Developer settings, Personal access tokens, limited to the <code>resume</code> repository, with Contents set to read and write.</p>
@@ -270,6 +349,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=20"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>

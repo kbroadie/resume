@@ -1,17 +1,19 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
-  sectionTexts, typo, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=20';
-import { buildPdf, docFromText } from './pdf.js?v=20';
+  sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
+} from './lib.js?v=22';
+import { buildPdf, docFromText } from './pdf.js?v=22';
 import {
-  SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails, buildSuggestRequest
-} from './ats.js?v=20';
+  SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails, buildSuggestRequest,
+  buildSummaryRequest, checkSummaries
+} from './ats.js?v=22';
+import { icon, hydrateIcons } from './icons.js?v=22';
 import {
   emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=20';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=20';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=20';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=20';
+} from './knowledge.js?v=22';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=22';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=22';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=22';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -22,6 +24,7 @@ const LOCATION_STORE = 'resume-tailor-location';
 const HISTORY_STORE = 'resume-advisor-history';
 const DRAFT_STORE = 'resume-advisor-draft';
 const THEME_STORE = 'resume-advisor-theme';
+const AUTOSUGGEST_STORE = 'resume-advisor-autosuggest';
 
 const $ = (id) => document.getElementById(id);
 const esc = escapeHtml;
@@ -30,7 +33,7 @@ const esc = escapeHtml;
 
 const store = {
   get(name) { try { return localStorage.getItem(name) || ''; } catch { return ''; } },
-  set(name, value) { try { localStorage.setItem(name, value); } catch { /* storage blocked */ } },
+  set(name, value) { try { localStorage.setItem(name, value); return true; } catch { return false; } },
   del(name) { try { localStorage.removeItem(name); } catch { /* ignore */ } },
   json(name, fallback) { try { return JSON.parse(localStorage.getItem(name) || 'null') ?? fallback; } catch { return fallback; } }
 };
@@ -52,6 +55,15 @@ let reviewing = null;
 
 /* ---------- small helpers ---------- */
 
+// Posting texts are the bulk of the saved history. If the browser's storage fills up, drop the oldest ones first.
+function persistHistory() {
+  for (let strip = history.length; strip >= 0; strip -= 1) {
+    const trial = history.map((e, k) => (k >= strip && e.postingText ? { ...e, postingText: '' } : e));
+    if (store.set(HISTORY_STORE, JSON.stringify(trial))) { if (strip < history.length) history = trial; return; }
+  }
+  toast('This device is out of room for history. Older resumes may not be kept.');
+}
+
 let toastTimer = 0;
 function toast(message, action) {
   const el = $('toast');
@@ -72,17 +84,13 @@ const shortDate = (iso) => new Date(iso).toLocaleDateString(undefined, { month: 
 
 function setBusy(button, busy, text) {
   button.disabled = busy;
-  if (busy) { button.dataset.label = button.textContent; button.textContent = text; button.setAttribute('aria-busy', 'true'); }
-  else { button.textContent = button.dataset.label || button.textContent; button.removeAttribute('aria-busy'); }
+  if (busy) { button.dataset.html = button.innerHTML; button.textContent = text; button.setAttribute('aria-busy', 'true'); }
+  else { if (button.dataset.html) button.innerHTML = button.dataset.html; button.removeAttribute('aria-busy'); }
 }
 
 /* ---------- theme ---------- */
 
-const THEME_ICONS = {
-  auto: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>',
-  light: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
-  dark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>'
-};
+const THEME_ICONS = { auto: icon('auto'), light: icon('sun'), dark: icon('moon') };
 const THEME_NAMES = { auto: 'Automatic', light: 'Light', dark: 'Dark' };
 const themeMode = () => { const t = document.documentElement.dataset.theme; return t === 'light' || t === 'dark' ? t : 'auto'; };
 
@@ -103,7 +111,10 @@ function cycleTheme() {
 
 /* ---------- navigation ---------- */
 
+let lastView = 'tailor';
+
 function showView(name) {
+  if (name !== 'compare') lastView = name;
   for (const v of document.querySelectorAll('.view')) v.hidden = v.dataset.view !== name;
   for (const t of document.querySelectorAll('.tabbar button')) {
     if (t.dataset.view === name) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
@@ -117,6 +128,7 @@ function show(signedIn) {
   $('app').hidden = !signedIn;
   $('tabbar').hidden = !signedIn;
   $('open-settings').hidden = !signedIn;
+  $('open-history').hidden = !signedIn;
   if (signedIn) showView(document.querySelector('.view:not([hidden])')?.dataset.view || 'tailor');
 }
 
@@ -434,11 +446,12 @@ function acceptResult(result, issues, opts, link) {
     title: result.posting_title || '', company: result.company || '', link: link || '', location: locationLabel,
     text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: result.fit_notes || '',
     postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
+    postingText: (posting.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
     system, applyUrl: posting.applyUrl || '', form: null
   };
   const added = addEntry(history, entryData);
   history = added.list;
-  store.set(HISTORY_STORE, JSON.stringify(history));
+  persistHistory();
   loadEntry(added.entry);
 
   setQuestions(filterQuestions(result.questions, knowledge, groupOf));
@@ -446,6 +459,7 @@ function acceptResult(result, issues, opts, link) {
   showView('resume');
   const n = questions.length;
   toast(n ? `Resume ready. ${n} question${n === 1 ? '' : 's'} for you.` : 'Resume ready.', n ? { label: 'Answer', run: () => showView('questions') } : null);
+  if (store.get(AUTOSUGGEST_STORE) !== '0' && current.keywords.missing.length) autoSuggest();
 }
 
 function loadEntry(entry) {
@@ -456,17 +470,22 @@ function loadEntry(entry) {
     title: entry.title, company: entry.company, link: entry.link, location: entry.location,
     issues: entry.issues || [], keywords: entry.keywords || { covered: [], missing: [] }, fit: entry.fit || '',
     postingKeywords: entry.postingKeywords || [], suggestions: entry.suggestions || [],
-    system: entry.system || null, applyUrl: entry.applyUrl || '', form: entry.form || null, unsupported: entry.unsupported || []
+    system: entry.system || null, applyUrl: entry.applyUrl || '', form: entry.form || null, unsupported: entry.unsupported || [],
+    postingText: entry.postingText || '', summaryOptions: entry.summaryOptions || [], summaryOriginal: entry.summaryOriginal || ''
   };
   renderCurrent();
 }
 
+const kwList = () => (current.postingKeywords.length ? current.postingKeywords : [...current.keywords.covered, ...current.keywords.missing]);
+
 function renderCurrent() {
   const c = current;
+  const terms = kwList();
+  if (terms.length) c.keywords = keywordCoverage(terms, c.text);
   $('resume-empty').hidden = true;
   $('resume-body').hidden = false;
   $('res-title').textContent = c.title || 'Tailored resume';
-  $('res-sub').textContent = [c.company, c.location].filter(Boolean).join(' \u00B7 ');
+  $('res-sub').textContent = [c.company, c.location].filter(Boolean).join(' · ');
   const linkEl = $('res-link');
   linkEl.hidden = !c.link;
   if (c.link) linkEl.href = c.link;
@@ -476,45 +495,65 @@ function renderCurrent() {
   if (c.edited) paper.textContent = c.text; else { paper.innerHTML = renderHtml(c.doc); addCopyButtons(); }
   $('resume-edit').hidden = !editing;
   paper.hidden = editing;
-  $('edit').textContent = editing ? 'Done' : 'Edit';
+  $('edit').querySelector('span').textContent = editing ? 'Done' : 'Edit';
 
   const stats = resumeStats(c.text);
   $('stat-words').textContent = `${stats.words} words, about ${stats.pages} page${stats.pages === 1 ? '' : 's'}`;
   $('stat-edited').hidden = !c.edited;
   const checks = $('stat-checks');
-  checks.textContent = c.issues.length ? `${c.issues.length} check${c.issues.length === 1 ? '' : 's'} to review` : 'Checks passed';
+  checks.innerHTML = `${icon(c.issues.length ? 'alert' : 'check')}${c.issues.length ? `${c.issues.length} check${c.issues.length === 1 ? '' : 's'} to review` : 'Checks passed'}`;
   checks.className = `pill pill-btn ${c.issues.length ? 'warn' : 'ok'}`;
   $('checks').innerHTML = c.issues.length
     ? c.issues.map((i) => `<li>${esc(i)}</li>`).join('')
     : '<li>No problems found. Every bullet cites verified library entries and uses only numbers from them.</li>';
-
-  const kw = c.keywords;
-  const total = kw.covered.length + kw.missing.length;
-  $('kw-summary').textContent = total ? `${kw.covered.length} of ${total}` : '';
-  $('kw-fold').hidden = total === 0;
-  $('kw-chips').innerHTML = [...kw.covered.map((k) => `<span class="hit">${esc(k)}</span>`), ...kw.missing.map((k) => `<span class="miss">${esc(k)}</span>`)].join('');
   $('fit').textContent = c.fit;
 
   const sys = $('stat-system');
   sys.hidden = false;
-  sys.textContent = c.system ? c.system.name : 'Application system?';
+  sys.innerHTML = `${icon('building')}${esc(c.system ? c.system.name : 'Application system?')}`;
   sys.className = `pill pill-btn ${c.system ? 'sys' : ''}`;
+  renderImprove();
+}
+
+/* ---------- Improve: keyword rewrites, summary, checks ---------- */
+
+const openSuggestions = () => (current?.suggestions || []).filter((s) => s.kind === 'rephrase' && !s.applied && !s.dismissed);
+
+function renderImprove() {
+  const c = current;
+  $('improve-empty').hidden = true;
+  $('improve-body').hidden = false;
+  $('improve-sub').textContent = [c.title, c.company].filter(Boolean).join(' at ') || 'This resume';
+
+  // Coverage: every posting term, marked by whether the resume says it.
+  const terms = kwList();
+  const total = terms.length;
+  const covered = c.keywords.covered.length;
+  $('cov-text').textContent = total ? `${covered} of ${total}` : '';
+  $('cov-fill').style.width = total ? `${Math.round((covered / total) * 100)}%` : '0%';
+  const resumeCounts = markTerms(c.text, terms).counts;
+  $('kw-chips').innerHTML = terms.map((t, i) => `<button type="button" class="${resumeCounts[i] ? 'hit' : 'miss'}" data-k="${i}">${esc(t)}<small>${resumeCounts[i]}</small></button>`).join('')
+    || '<span class="hint">No posting terms were recorded for this resume.</span>';
+
   renderSuggestions();
+  renderSummary();
   renderAts();
+  $('sys-open-text').textContent = c.system ? c.system.name : 'Check which system takes this application';
+  const open = openSuggestions().length;
+  $('badge-i').hidden = open === 0;
+  $('badge-i').textContent = String(open);
+  $('improve-count').hidden = open === 0;
+  $('improve-count').textContent = String(open);
 }
 
 function renderSuggestions() {
   const c = current;
   const items = c.suggestions || [];
   const missing = c.keywords.missing.length;
-  $('sug-fold').hidden = items.length === 0 && missing === 0;
-  const open = items.filter((s) => !s.applied && !s.dismissed).length;
-  $('sug-count').textContent = items.length ? `${open} open` : missing ? `${missing} keyword${missing === 1 ? '' : 's'} missing` : '';
+  const open = openSuggestions().length;
+  $('sug-count').textContent = open ? `${open} open` : missing ? `${missing} missing` : '';
   $('sug-more').hidden = missing === 0;
-  $('sug-more').textContent = `Suggest more for the ${missing} missing keyword${missing === 1 ? '' : 's'}`;
-  $('sug-unsupported').innerHTML = (c.unsupported || []).length
-    ? `<h3>Not in your library</h3><ul class="tips">${c.unsupported.map((u) => `<li><strong>${esc(u.keyword)}.</strong> ${esc(u.why)}</li>`).join('')}</ul><p>If one is true for you, add it under Teach on the Library tab and tailor again.</p>`
-    : '';
+  $('sug-all').hidden = open < 2;
   $('suggestions').innerHTML = items.map((s, i) => {
     if (s.dismissed) return '';
     if (s.kind === 'ats') return `<li class="sug"><span class="tag">Tip</span><p class="now">${esc(typo(s.text))}</p></li>`;
@@ -522,9 +561,12 @@ function renderSuggestions() {
     return `<li class="sug" data-i="${i}"><span class="tag">${esc(s.keyword)}</span>
       <p class="was">${esc(typo(s.replaces))}</p><p class="now">${esc(typo(s.text))}</p>
       ${s.why ? `<p class="why">${esc(typo(s.why))}</p>` : ''}
-      ${s.applied ? '<p class="applied">Applied</p>' : stale ? '<p class="why">This line has changed, so the suggestion no longer fits.</p>'
-        : `<div class="sug-actions"><button type="button" class="btn primary" data-sug="apply">Apply</button><button type="button" class="btn" data-sug="dismiss">Dismiss</button></div>`}</li>`;
-  }).join('') || '<li>No suggestions left.</li>';
+      ${s.applied ? `<p class="applied">${icon('check')} Applied</p>` : stale ? '<p class="why">This line has changed, so the rewrite no longer fits.</p>'
+        : `<div class="sug-actions"><button type="button" class="btn primary" data-sug="apply">${icon('check')}Apply</button><button type="button" class="btn" data-sug="dismiss">Dismiss</button></div>`}</li>`;
+  }).join('') || `<li>${missing ? 'No rewrites yet. Tap Find more.' : 'Every posting term is already in the resume.'}</li>`;
+  $('sug-unsupported').innerHTML = (c.unsupported || []).length
+    ? `<h3>Not in your library</h3><ul class="tips">${c.unsupported.map((u) => `<li><strong>${esc(u.keyword)}.</strong> ${esc(u.why)}</li>`).join('')}</ul><p>If one is true for you, add it under Teach on the Library tab and tailor again.</p>`
+    : '';
 }
 
 // The line a suggestion would replace, if it is still in the resume as written.
@@ -535,43 +577,31 @@ function suggestionTarget(s) {
 
 function renderAts() {
   const c = current;
-  const checks = atsLint({ text: c.text, doc: c.doc, keywords: c.postingKeywords, postingTitle: c.title });
+  const checks = atsLint({ text: c.text, doc: c.doc, keywords: kwList(), postingTitle: c.title });
   const review = checks.filter((x) => !x.ok).length;
   $('ats-count').textContent = review ? `${review} to review` : 'All clear';
-  $('ats-list').innerHTML = checks.map((x) => `<li class="ats-row ${x.ok ? 'ok' : 'warn'}"><i>${x.ok ? '\u2713' : '!'}</i><div>${esc(x.label)}<small>${esc(x.detail)}</small></div></li>`).join('');
+  $('ats-list').innerHTML = checks.map((x) => `<li class="ats-row ${x.ok ? 'ok' : 'warn'}"><i>${x.ok ? '✓' : '!'}</i><div>${esc(x.label)}<small>${esc(x.detail)}</small></div></li>`).join('');
 }
 
 function saveEntry(patch) {
   history = updateEntry(history, current.id, patch);
-  store.set(HISTORY_STORE, JSON.stringify(history));
+  persistHistory();
 }
 
-// Asks for natural rewordings that cover the keywords the resume still lacks, then keeps only the safe ones.
-async function suggestMore() {
-  const missing = current.keywords.missing;
-  if (!missing.length) return;
-  const status = $('sug-status');
-  setBusy($('sug-more'), true, 'Finding natural wording...');
-  status.textContent = '';
-  try {
-    const opts = { includePersonalLine: $('personal').checked, knowledge };
-    const req = buildSuggestRequest(profile, { doc: current.doc, missing, offered: current.suggestions.filter((s) => s.kind === 'rephrase'), ...opts });
-    const input = await askClaude(req, 'submit_suggestions');
-    const known = sourceTextLookup(profile, opts);
-    const fresh = checkSuggestions(input.suggestions, { doc: current.doc, knownText: known, libraryText: known.all() })
-      .filter((s) => s.kind === 'rephrase' && !current.suggestions.some((o) => o.kind === 'rephrase' && (o.keyword || '').toLowerCase() === s.keyword.toLowerCase() && o.replaces === s.replaces && !o.dismissed));
-    current.suggestions = [...current.suggestions, ...fresh];
-    current.unsupported = (input.unsupported || []).filter((u) => u?.keyword && u?.why).map((u) => ({ keyword: String(u.keyword), why: String(u.why) }));
-    saveEntry({ suggestions: current.suggestions, unsupported: current.unsupported });
-    renderSuggestions();
-    status.textContent = fresh.length
-      ? `${fresh.length} new suggestion${fresh.length === 1 ? '' : 's'}.`
-      : 'Nothing safe to add. Every other missing term needs something your library does not yet say.';
-  } catch (err) {
-    status.textContent = err.message;
-  } finally {
-    setBusy($('sug-more'), false);
-  }
+// Recomputes everything that depends on the resume's wording after a change, and saves it.
+function finishChange(extra = {}) {
+  current.text = renderText(current.doc);
+  current.generated = current.text;
+  current.keywords = keywordCoverage(kwList(), current.text);
+  saveEntry({ doc: current.doc, text: current.text, originalText: current.text, keywords: current.keywords, suggestions: current.suggestions, ...extra });
+  renderCurrent();
+}
+
+function applyOne(s) {
+  if (!suggestionTarget(s)) return false;
+  current.doc = applySuggestion(current.doc, s);
+  s.applied = true;
+  return true;
 }
 
 function onSuggestion(event) {
@@ -579,17 +609,162 @@ function onSuggestion(event) {
   const li = event.target.closest('li[data-i]');
   if (!btn || !li) return;
   const s = current.suggestions[Number(li.dataset.i)];
-  if (btn.dataset.sug === 'dismiss') { s.dismissed = true; saveEntry({ suggestions: current.suggestions }); renderSuggestions(); return; }
-  if (current.edited) { toast('Revert your edits first, then apply suggestions.'); return; }
-  if (!suggestionTarget(s)) { renderSuggestions(); return; }
-  current.doc = applySuggestion(current.doc, s);
-  current.text = renderText(current.doc);
-  current.generated = current.text;
-  current.keywords = keywordCoverage(current.postingKeywords, current.text);
-  s.applied = true;
-  saveEntry({ doc: current.doc, text: current.text, originalText: current.text, keywords: current.keywords, suggestions: current.suggestions });
-  renderCurrent();
+  if (btn.dataset.sug === 'dismiss') { s.dismissed = true; saveEntry({ suggestions: current.suggestions }); renderImprove(); return; }
+  if (current.edited) { toast('Revert your edits first, then apply rewrites.'); return; }
+  if (!applyOne(s)) { renderSuggestions(); return; }
+  finishChange();
   toast('Applied.');
+}
+
+function applyAll() {
+  if (current.edited) { toast('Revert your edits first, then apply rewrites.'); return; }
+  let done = 0;
+  for (const s of openSuggestions()) if (applyOne(s)) done += 1;
+  if (!done) { toast('Nothing could be applied. The lines have changed.'); return; }
+  finishChange();
+  toast(`Applied ${done} rewrite${done === 1 ? '' : 's'}.`);
+}
+
+// Asks for natural rewordings that cover the keywords the resume still lacks, then keeps only the safe ones.
+async function suggestMore(only = null, { quiet = false } = {}) {
+  const missing = only || current.keywords.missing;
+  if (!missing.length) return;
+  const status = $('sug-status');
+  const button = $('sug-more');
+  if (!quiet) setBusy(button, true, 'Finding wording...');
+  status.textContent = `Finding natural wording for ${missing.length} keyword${missing.length === 1 ? '' : 's'}...`;
+  const entryId = current.id;
+  try {
+    const opts = { includePersonalLine: $('personal').checked, knowledge };
+    const req = buildSuggestRequest(profile, { doc: current.doc, missing, offered: current.suggestions.filter((s) => s.kind === 'rephrase'), ...opts });
+    const input = await askClaude(req, 'submit_suggestions');
+    if (!current || current.id !== entryId) return;
+    const known = sourceTextLookup(profile, opts);
+    const fresh = checkSuggestions(input.suggestions, { doc: current.doc, knownText: known, libraryText: known.all() })
+      .filter((s) => s.kind === 'rephrase' && !current.suggestions.some((o) => o.kind === 'rephrase' && (o.keyword || '').toLowerCase() === s.keyword.toLowerCase() && o.replaces === s.replaces && !o.dismissed));
+    current.suggestions = [...current.suggestions, ...fresh];
+    current.unsupported = (input.unsupported || []).filter((u) => u?.keyword && u?.why).map((u) => ({ keyword: String(u.keyword), why: String(u.why) }));
+    saveEntry({ suggestions: current.suggestions, unsupported: current.unsupported });
+    renderImprove();
+    status.textContent = fresh.length
+      ? `${fresh.length} new rewrite${fresh.length === 1 ? '' : 's'}.`
+      : 'Nothing safe to add. Every other missing term needs something your library does not yet say.';
+    if (quiet && fresh.length) toast(`${fresh.length} keyword rewrite${fresh.length === 1 ? '' : 's'} ready.`, { label: 'Review', run: () => showView('improve') });
+  } catch (err) {
+    status.textContent = err.message;
+  } finally {
+    if (!quiet) setBusy(button, false);
+  }
+}
+
+// After tailoring: look for rewrites in the background so the Improve tab is already filled in.
+function autoSuggest() {
+  suggestMore(null, { quiet: true });
+}
+
+/* ---------- Improve: the summary ---------- */
+
+function renderSummary() {
+  const c = current;
+  $('sum-current').textContent = typo(c.doc.summary || 'This resume has no summary.');
+  $('sum-restore').hidden = !c.summaryOriginal || c.summaryOriginal === c.doc.summary;
+  $('sum-options').innerHTML = (c.summaryOptions || []).map((o, i) => `<li class="sug" data-i="${i}"><span class="tag">${esc(o.label)}</span>
+    <p class="now">${esc(typo(o.text))}</p>
+    <div class="sug-actions"><button type="button" class="btn primary" data-sum="use">${icon('check')}Use this</button></div></li>`).join('');
+}
+
+async function writeSummaries() {
+  const button = $('sum-gen');
+  const status = $('sum-status');
+  setBusy(button, true, 'Writing options...');
+  status.textContent = '';
+  try {
+    const opts = { includePersonalLine: $('personal').checked, knowledge };
+    const req = buildSummaryRequest(profile, { doc: current.doc, keywords: kwList(), missing: current.keywords.missing, postingTitle: current.title, ...opts });
+    const input = await askClaude(req, 'submit_summaries');
+    const known = sourceTextLookup(profile, opts);
+    current.summaryOptions = checkSummaries(input.options, { knownText: known, years: yearsSince(profile.meta.career_start), startYear: Number(profile.meta.career_start.slice(0, 4)) });
+    saveEntry({ summaryOptions: current.summaryOptions });
+    status.textContent = current.summaryOptions.length ? '' : 'No safe options this time. Try again.';
+    renderSummary();
+  } catch (err) {
+    status.textContent = err.message;
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+function useSummary(i) {
+  if (current.edited) { toast('Revert your edits first, then change the summary.'); return; }
+  const option = current.summaryOptions[i];
+  if (!option) return;
+  if (!current.summaryOriginal) current.summaryOriginal = current.doc.summary;
+  current.doc = { ...current.doc, summary: option.text };
+  finishChange({ summaryOriginal: current.summaryOriginal });
+  toast(`Summary changed to ${option.label}.`);
+}
+
+function restoreSummary() {
+  if (!current.summaryOriginal) return;
+  current.doc = { ...current.doc, summary: current.summaryOriginal };
+  finishChange();
+  toast('Original summary restored.');
+}
+
+/* ---------- Compare: the posting and the draft, side by side ---------- */
+
+const cmp = { mode: 'both', active: -1 };
+
+function renderCompare() {
+  const c = current;
+  const terms = kwList();
+  const resumeSide = markTerms(c.text, terms, () => 'hit');
+  const postingSide = c.postingText ? markTerms(c.postingText, terms, (i) => (resumeSide.counts[i] ? 'hit' : 'miss')) : null;
+  $('cmp-chips').innerHTML = terms.map((t, i) => `<button type="button" class="${resumeSide.counts[i] ? 'hit' : 'miss'}" data-k="${i}" aria-pressed="${cmp.active === i}">${esc(t)}<small>${postingSide ? postingSide.counts[i] : '?'} · ${resumeSide.counts[i]}</small></button>`).join('');
+  $('cmp-posting-body').innerHTML = postingSide
+    ? postingSide.html
+    : `<p class="none">The posting text was not saved for this older resume. Copy the posting and tap below to add it.<br><button type="button" id="cmp-paste" class="chip-btn">${icon('clipboard')}Paste the posting</button></p>`;
+  $('cmp-resume-body').innerHTML = resumeSide.html;
+  for (const b of document.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', String(b.dataset.pane === cmp.mode));
+  $('cmp-panes').dataset.mode = cmp.mode;
+  $('cmp-detail').innerHTML = '';
+  if (cmp.active >= 0) focusTerm(cmp.active, { scroll: false });
+}
+
+function focusTerm(k, { scroll = true } = {}) {
+  cmp.active = k;
+  const terms = kwList();
+  for (const b of document.querySelectorAll('#cmp-chips button')) b.setAttribute('aria-pressed', String(Number(b.dataset.k) === k));
+  for (const m of document.querySelectorAll('#v-compare mark')) m.classList.toggle('k-active', Number(m.dataset.k) === k);
+  const inPosting = document.querySelectorAll(`#cmp-posting-body mark[data-k="${k}"]`);
+  const inResume = document.querySelectorAll(`#cmp-resume-body mark[data-k="${k}"]`);
+  if (scroll) {
+    for (const [pane, list] of [['cmp-posting-body', inPosting], ['cmp-resume-body', inResume]]) {
+      const body = $(pane);
+      if (list[0]) body.scrollTo({ top: Math.max(0, list[0].offsetTop - body.clientHeight / 3), behavior: 'smooth' });
+    }
+  }
+  const missing = inResume.length === 0;
+  $('cmp-detail').innerHTML = `${esc(terms[k])}: ${current.postingText ? `${inPosting.length} in the posting, ` : ''}${inResume.length} in your resume.${missing ? ` <button type="button" class="chip-btn" id="cmp-find">${icon('sparkle')}Find wording</button>` : ''}`;
+}
+
+function openCompare(k = -1) {
+  if (!current) return;
+  cmp.active = k;
+  renderCompare();
+  showView('compare');
+  if (k >= 0) focusTerm(k);
+}
+
+async function pastePostingIntoEntry() {
+  try {
+    const text = (await navigator.clipboard.readText()).trim();
+    if (text.length < 40) { toast('That did not look like a posting.'); return; }
+    current.postingText = text.slice(0, 15000);
+    saveEntry({ postingText: current.postingText });
+    renderCompare();
+    toast('Posting added.');
+  } catch { toast('Paste was blocked by the browser.'); }
 }
 
 // One Copy button per section and per job, so a single application field can be filled with one tap.
@@ -752,7 +927,7 @@ function revertEdit() {
 
 function saveCurrentToHistory() {
   history = updateEntry(history, current.id, { text: current.text, originalText: current.generated });
-  store.set(HISTORY_STORE, JSON.stringify(history));
+  persistHistory();
 }
 
 /* ---------- questions, one at a time ---------- */
@@ -949,7 +1124,7 @@ function onHistoryClick(event) {
   if (event.target.closest('[data-open]')) { loadEntry(entry); setQuestions([]); showView('resume'); }
   if (event.target.closest('[data-delete]')) {
     history = removeHistory(history, entry.id);
-    store.set(HISTORY_STORE, JSON.stringify(history));
+    persistHistory();
     renderHistory();
     toast('Deleted.');
   }
@@ -960,13 +1135,15 @@ function onHistoryChange(event) {
   const card = event.target.closest('.hcard');
   if (!select || !card) return;
   history = updateEntry(history, card.dataset.id, { status: select.value });
-  store.set(HISTORY_STORE, JSON.stringify(history));
+  persistHistory();
 }
 
 /* ---------- start-up ---------- */
 
 async function init() {
+  hydrateIcons();
   applyTheme(themeMode());
+  $('auto-suggest').checked = store.get(AUTOSUGGEST_STORE) !== '0';
   $('model').innerHTML = MODELS.map((m) => `<option value="${m.id}">${esc(m.label)}</option>`).join('');
   const savedModel = store.get('resume-advisor-model');
   if (MODELS.some((m) => m.id === savedModel)) $('model').value = savedModel;
@@ -1062,7 +1239,28 @@ async function init() {
   $('download').addEventListener('click', download);
   $('pdf').addEventListener('click', () => { if (editing) toggleEdit(); makePdf(); });
   $('suggestions').addEventListener('click', onSuggestion);
-  $('sug-more').addEventListener('click', suggestMore);
+  $('sug-more').addEventListener('click', () => suggestMore());
+  $('sug-all').addEventListener('click', applyAll);
+  $('sum-gen').addEventListener('click', writeSummaries);
+  $('sum-restore').addEventListener('click', restoreSummary);
+  $('sum-options').addEventListener('click', (e) => { const li = e.target.closest('li[data-i]'); if (li && e.target.closest('[data-sum]')) useSummary(Number(li.dataset.i)); });
+  $('sys-open').addEventListener('click', () => { renderSystemDialog(); showDialog('app-dialog'); });
+  $('open-improve').addEventListener('click', () => showView('improve'));
+  $('open-history').addEventListener('click', () => showView('history'));
+  $('open-compare-top').addEventListener('click', () => openCompare());
+  $('open-compare').addEventListener('click', () => openCompare());
+  $('kw-chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-k]'); if (b) openCompare(Number(b.dataset.k)); });
+  $('cmp-chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-k]'); if (b) focusTerm(Number(b.dataset.k)); });
+  $('compare-back').addEventListener('click', () => showView(lastView === 'compare' ? 'resume' : lastView));
+  for (const b of document.querySelectorAll('.seg button')) b.addEventListener('click', () => { cmp.mode = b.dataset.pane; renderCompare(); });
+  $('cmp-detail').addEventListener('click', async (e) => {
+    if (!e.target.closest('#cmp-find')) return;
+    const term = kwList()[cmp.active];
+    await suggestMore([term]);
+    showView('improve');
+  });
+  $('cmp-posting-body').addEventListener('click', (e) => { if (e.target.closest('#cmp-paste')) pastePostingIntoEntry(); });
+  $('auto-suggest').addEventListener('change', () => store.set(AUTOSUGGEST_STORE, $('auto-suggest').checked ? '1' : '0'));
   $('stat-system').addEventListener('click', () => { renderSystemDialog(); showDialog('app-dialog'); });
   $('edit').addEventListener('click', toggleEdit);
   $('stat-edited').addEventListener('click', revertEdit);

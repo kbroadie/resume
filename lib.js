@@ -1,5 +1,5 @@
 // Pure functions shared by the browser app and the tests. No DOM access here.
-import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=20';
+import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=22';
 
 export const MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5 (default)' },
@@ -101,6 +101,8 @@ HARD RULES
 21. posting_title and company come straight from the posting (empty string if absent). posting_keywords lists 8 to 15 of its most important skills, tools, and terms in the posting's own wording, whether or not the resume covers them.
 
 22. suggestions: offer up to 6. A "rephrase" suggestion takes a bullet (or the summary) that is already in this resume and rewords it so it uses a posting keyword the resume does not yet use, but only where the library already supports that wording. Copy "replaces" exactly from the resume text you wrote, include the keyword verbatim in "text", cite source_ids, keep every number, and add no claim. Prefer keywords that appear in the posting's requirements. An "ats" suggestion is one sentence of plain advice about reading or filling out this posting's application; never a new claim about Kevin.
+
+23. Keyword coverage matters. For every posting keyword the library supports, use the posting's own wording somewhere natural: in the summary, a skill, or a bullet you reword under rule 2. Choose bullets whose substance already fits and swap in the posting's term for a near-synonym ("grant writing" to "grant applications"). Aim to cover every supported keyword without stacking terms or repeating one. For a keyword the library cannot support, ask a "gap" question instead of stretching.
 
 Respond only by calling submit_resume, exactly once. Do not write any text outside the tool call.`;
 
@@ -484,6 +486,31 @@ export function resumeFilename(company, title, ext = 'txt') {
     return slug.length <= max ? slug : slug.slice(0, max).replace(/-[^-]*$/, '') || slug.slice(0, max);
   };
   return ['Kevin-Broadie-Resume', part(company, 24), part(title, 24)].filter(Boolean).join('-') + `.${ext}`;
+}
+
+// ---- Highlighting posting terms ------------------------------------------------------------------
+// Wraps every whole-word, case-insensitive occurrence of each term in <mark data-k="index">. Longer terms win over
+// shorter ones that overlap them. The text is escaped, so the result is safe to insert as HTML.
+export function markTerms(text, terms, classOf = () => 'hit') {
+  const source = String(text);
+  const list = (terms || []).map((t, i) => ({ t: String(t).trim(), i })).filter((x) => x.t);
+  const counts = (terms || []).map(() => 0);
+  const spans = [];
+  for (const { t, i } of list) {
+    const re = new RegExp(`(?<![A-Za-z0-9])${escapeRe(t).replace(/\s+/g, '\\s+')}(?![A-Za-z0-9])`, 'gi');
+    for (const m of source.matchAll(re)) spans.push({ start: m.index, end: m.index + m[0].length, i });
+  }
+  spans.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  let html = '';
+  let at = 0;
+  for (const s of spans) {
+    if (s.start < at) continue;
+    html += escapeHtml(source.slice(at, s.start));
+    html += `<mark class="k-${classOf(s.i)}" data-k="${s.i}">${escapeHtml(source.slice(s.start, s.end))}</mark>`;
+    counts[s.i] += 1;
+    at = s.end;
+  }
+  return { html: html + escapeHtml(source.slice(at)), counts };
 }
 
 // ---- Reading a posting from its link -------------------------------------------------------------

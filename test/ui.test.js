@@ -7,7 +7,7 @@ const html = read('index.html');
 const app = read('app.js');
 
 // Ids that app.js creates at run time, so they are not in index.html.
-const DYNAMIC = new Set(['q-answer', 'approve', 'cancel-merge', 'review-msg', 'check-form', 'system-select', 'form-details', 'form-status']);
+const DYNAMIC = new Set(['q-answer', 'approve', 'cancel-merge', 'review-msg', 'check-form', 'system-select', 'form-details', 'form-status', 'cmp-find', 'cmp-paste']);
 
 test('every element id the app looks up exists in the page', () => {
   const used = new Set([...app.matchAll(/\$\('([a-z0-9-]+)'\)/g)].map((m) => m[1]));

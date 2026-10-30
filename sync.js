@@ -1,6 +1,6 @@
 // Saves Kevin's knowledge file to the GitHub repo so it follows him across devices.
 // Needs a fine-grained token with Contents read/write on this repository; reading works without one.
-import { mergeKnowledge, normalizeKnowledge } from './knowledge.js?v=20';
+import { mergeKnowledge, normalizeKnowledge } from './knowledge.js?v=22';
 
 export const REPO = 'kbroadie/resume';
 export const PATH = 'data/knowledge.json';

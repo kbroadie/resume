@@ -1,7 +1,7 @@
 // Applicant tracking: which system takes the application, what it typically wants, how well the resume suits
 // an automated reader, and rephrasing suggestions that stay inside the library.
 
-import { keywordCoverage, webFetchTool, splitProfile } from './lib.js?v=20';
+import { keywordCoverage, webFetchTool, splitProfile, yearsSince } from './lib.js?v=22';
 
 /* ---------- application systems ---------- */
 
@@ -350,4 +350,71 @@ export function buildSuggestRequest(profile, { doc, missing, offered = [], inclu
       '<LIBRARY>', JSON.stringify(usable), '</LIBRARY>'
     ].join('\n')
   };
+}
+
+/* ---------- writing the summary ---------- */
+
+export const SUMMARY_SYSTEM = `You write the professional summary at the top of Kevin Broadie's resume.
+
+RULES
+1. Use only facts in LIBRARY. Never infer or add anything. Every number must come from LIBRARY or from years_of_experience, which may be written as "N+ years" at most.
+2. Offer exactly three options with different emphases. Label them "Impact" (leads with a concrete result from the library), "Skills" (leads with the strengths the posting asks for), and "Brief" (two sentences).
+3. Impact and Skills run two to four sentences. All options stay under 70 words, use no first person, and are plain and specific. Avoid filler such as "results-driven", "passionate", or "dynamic".
+4. Use the posting's own terms where the library supports them, naturally and never stacked.
+5. Cite the library ids each option draws on in source_ids.
+Respond only by calling submit_summaries, once.`;
+
+export const SUMMARY_TOOL = {
+  name: 'submit_summaries',
+  description: 'Submit three summary options for the resume.',
+  input_schema: {
+    type: 'object',
+    required: ['options'],
+    properties: {
+      options: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['label', 'text', 'source_ids'],
+          properties: {
+            label: { type: 'string', enum: ['Impact', 'Skills', 'Brief'] },
+            text: { type: 'string' },
+            source_ids: { type: 'array', items: { type: 'string' } }
+          }
+        }
+      }
+    }
+  }
+};
+
+export function buildSummaryRequest(profile, { doc, keywords = [], missing = [], postingTitle = '', includePersonalLine = true, knowledge = null, now = new Date() }) {
+  const { usable } = splitProfile(profile, { includePersonalLine, knowledge });
+  const facts = { years_of_experience: yearsSince(profile.meta.career_start, now), career_start_year: Number(profile.meta.career_start.slice(0, 4)) };
+  return {
+    system: SUMMARY_SYSTEM,
+    tools: [SUMMARY_TOOL],
+    tool_choice: { type: 'auto' },
+    user: [
+      '<POSTING_TITLE>', postingTitle || '(unknown)', '</POSTING_TITLE>',
+      '<POSTING_TERMS>', JSON.stringify({ all: keywords, not_yet_in_resume: missing }), '</POSTING_TERMS>',
+      '<CURRENT_SUMMARY>', doc.summary || '', '</CURRENT_SUMMARY>',
+      '<FACTS>', JSON.stringify(facts), '</FACTS>',
+      '<LIBRARY>', JSON.stringify(usable), '</LIBRARY>'
+    ].join('\n')
+  };
+}
+
+// Keeps only options that cite the library, stay short, avoid first person, and add no number it lacks.
+export function checkSummaries(options, { knownText, years, startYear }) {
+  const out = [];
+  for (const o of options || []) {
+    const text = String(o?.text || '').trim().replace(/\s+/g, ' ');
+    const label = ['Impact', 'Skills', 'Brief'].includes(o?.label) ? o.label : '';
+    if (!text || !label || !(o.source_ids || []).length) continue;
+    if (text.split(' ').length > 90 || /\b(I|my|me)\b/.test(text)) continue;
+    const allowed = new Set([...numbersOf(knownText(o.source_ids)), String(years), String(startYear)]);
+    if (numbersOf(text).some((n) => !allowed.has(n))) continue;
+    if (!out.some((x) => x.label === label)) out.push({ label, text, source_ids: o.source_ids });
+  }
+  return out;
 }
