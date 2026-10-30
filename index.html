@@ -20,7 +20,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=24">
+  <link rel="stylesheet" href="styles.css?v=25">
 </head>
 <body>
   <header class="appbar">
@@ -134,9 +134,10 @@
             <button id="stat-edited" type="button" class="pill pill-btn" hidden>Edited. Revert</button>
           </div>
 
-          <div class="toolbar" role="toolbar" aria-label="Resume actions">
-            <button id="copy" type="button" class="btn primary"><i data-icon="copy"></i><span>Copy all</span></button>
-            <button id="edit" type="button" class="btn"><i data-icon="edit"></i><span>Edit</span></button>
+          <div class="toolbar actions" role="toolbar" aria-label="Resume actions">
+            <button id="copy" type="button" class="btn tile primary"><i data-icon="copy"></i><span>Copy all</span></button>
+            <button id="edit" type="button" class="btn tile"><i data-icon="edit"></i><span>Edit</span></button>
+            <button id="regen" type="button" class="btn tile"><i data-icon="refresh"></i><span>Regenerate</span></button>
           </div>
           <div class="dl-group" role="group" aria-label="Download this resume">
             <span class="dl-label"><i data-icon="download"></i>Download</span>
@@ -338,6 +339,30 @@
     <ul id="checks" class="cards"></ul>
   </dialog>
 
+  <!-- Regenerate: a fresh draft from the same posting -->
+  <dialog id="regen-dialog" class="sheet" aria-labelledby="regen-h">
+    <div class="sheet-grab" aria-hidden="true"></div>
+    <div class="sheet-head"><h2 id="regen-h">Regenerate</h2><button type="button" class="chip-btn" data-close>Cancel</button></div>
+    <p class="hint">Writes a new draft from the same posting. Edits you made to this draft are replaced, and you can undo.</p>
+    <div class="field">
+      <label for="regen-notes">What should change? <span class="opt">Optional</span></label>
+      <textarea id="regen-notes" rows="3" placeholder="Example: Lead with grant writing. Keep it to one page."></textarea>
+      <div class="chips" id="regen-ideas" role="group" aria-label="Ideas">
+        <button type="button" class="chip-btn" data-idea="Keep it to one page.">One page</button>
+        <button type="button" class="chip-btn" data-idea="Lead with leadership and team building.">Lead with leadership</button>
+        <button type="button" class="chip-btn" data-idea="Emphasize design work.">More design</button>
+        <button type="button" class="chip-btn" data-idea="Emphasize web and technical work.">More technical</button>
+      </div>
+    </div>
+    <p class="label opt-label">Options for this draft</p>
+    <div class="chips" role="group" aria-label="Options for this draft">
+      <label class="toggle"><input id="regen-short" type="checkbox"><span>Short titles</span></label>
+      <label class="toggle"><input id="regen-personal" type="checkbox"><span>Caregiver lines</span></label>
+    </div>
+    <button id="regen-go" type="button" class="btn primary block"><i data-icon="refresh"></i><span>Regenerate resume</span></button>
+    <p id="regen-msg" class="msg" role="status" aria-live="polite"></p>
+  </dialog>
+
   <!-- Posting text (read only) -->
   <dialog id="posting-dialog" class="sheet" aria-labelledby="posting-h">
     <div class="sheet-head"><h2 id="posting-h">Posting text</h2><button type="button" class="chip-btn" data-close>Done</button></div>
@@ -359,6 +384,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=24"></script>
+  <script type="module" src="app.js?v=25"></script>
 </body>
 </html>

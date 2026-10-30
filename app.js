@@ -1,19 +1,19 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=24';
-import { buildPdf, docFromText } from './pdf.js?v=24';
+} from './lib.js?v=25';
+import { buildPdf, docFromText } from './pdf.js?v=25';
 import {
   SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=24';
-import { icon, hydrateIcons } from './icons.js?v=24';
+} from './ats.js?v=25';
+import { icon, hydrateIcons } from './icons.js?v=25';
 import {
   emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=24';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=24';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=24';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=24';
+} from './knowledge.js?v=25';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=25';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=25';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=25';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -433,7 +433,7 @@ async function generate(event) {
     msg.textContent = 'Tailoring. This usually takes 20 to 60 seconds.';
     const input = await askClaude(req, 'submit_resume');
     const issues = validateResult(input, profile, { ...opts, knowledge });
-    acceptResult(input, issues, opts, link);
+    acceptResult(input, issues, opts, link, { notes: $('notes').value });
     msg.textContent = '';
   } catch (err) {
     msg.textContent = err.message;
@@ -442,30 +442,97 @@ async function generate(event) {
   }
 }
 
-function acceptResult(result, issues, opts, link) {
+// replaceId: regenerate this history entry in place instead of adding a new one. source: where the posting came from.
+function acceptResult(result, issues, opts, link, { replaceId = '', source = posting, notes = '' } = {}) {
   const doc = buildDoc(result, profile, { ...opts, knowledge });
   const text = renderText(doc);
   const locationLabel = profile.contact.locations.find((l) => l.id === opts.locationId)?.label || '';
   const known = sourceTextLookup(profile, { includePersonalLine: opts.includePersonalLine, knowledge });
-  const system = identifySystem({ applyUrl: posting.applyUrl, link, hint: posting.systemHint });
+  const system = replaceId ? current.system : identifySystem({ applyUrl: source.applyUrl, link, hint: source.systemHint });
   const entryData = {
     title: result.posting_title || '', company: result.company || '', link: link || '', location: locationLabel,
     text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: result.fit_notes || '',
     postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
-    postingText: (posting.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
-    system, applyUrl: posting.applyUrl || '', form: null
+    postingText: (source.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
+    system, applyUrl: source.applyUrl || '', form: replaceId ? current.form : null,
+    opts: { locationId: opts.locationId, shortTitles: Boolean(opts.shortTitles), includePersonalLine: opts.includePersonalLine !== false }, notes
   };
-  const added = addEntry(history, entryData);
-  history = added.list;
+  let entry;
+  if (replaceId) {
+    history = updateEntry(history, replaceId, entryData);
+    entry = history.find((e) => e.id === replaceId);
+  } else {
+    const added = addEntry(history, entryData);
+    history = added.list;
+    entry = added.entry;
+  }
   persistHistory();
-  loadEntry(added.entry);
+  loadEntry(entry);
 
   setQuestions(filterQuestions(result.questions, knowledge, groupOf));
   renderHistory();
   showView('resume');
   const n = questions.length;
-  toast(n ? `Resume ready. ${n} question${n === 1 ? '' : 's'} for you.` : 'Resume ready.', n ? { label: 'Answer', run: () => showView('questions') } : null);
+  if (!replaceId) toast(n ? `Resume ready. ${n} question${n === 1 ? '' : 's'} for you.` : 'Resume ready.', n ? { label: 'Answer', run: () => showView('questions') } : null);
   if (store.get(AUTOSUGGEST_STORE) !== '0' && current.keywords.missing.length) autoSuggest();
+}
+
+/* ---------- regenerate: a fresh draft from the same posting ---------- */
+
+let regenerating = false;
+
+function openRegenerate() {
+  if (!current || regenerating) return;
+  const prior = history.find((e) => e.id === current.id);
+  $('regen-notes').value = prior?.notes || '';
+  $('regen-short').checked = prior?.opts ? prior.opts.shortTitles : $('shorttitles').checked;
+  $('regen-personal').checked = prior?.opts ? prior.opts.includePersonalLine : $('personal').checked;
+  $('regen-msg').textContent = current.postingText ? '' : 'This resume was made before the posting was kept. Paste the posting on the Tailor tab to tailor it again.';
+  $('regen-go').disabled = !current.postingText;
+  showDialog('regen-dialog');
+}
+
+async function regenerate() {
+  const msg = $('regen-msg');
+  const prior = history.find((e) => e.id === current.id);
+  const locationId = prior?.opts?.locationId || profile.contact.locations.find((l) => l.label === current.location)?.id || $('location').value;
+  if (!locationId) { msg.textContent = 'Choose a location on the Tailor tab first.'; return; }
+  const opts = { includePersonalLine: $('regen-personal').checked, locationId, shortTitles: $('regen-short').checked };
+  const notes = $('regen-notes').value.trim();
+  const snapshot = prior ? { ...prior } : null;
+  const source = { text: current.postingText, applyUrl: current.applyUrl };
+  regenerating = true;
+  setBusy($('regen-go'), true, 'Writing a new draft...');
+  $('regen').setAttribute('aria-busy', 'true');
+  msg.textContent = 'This usually takes 20 to 60 seconds. You can close this and keep reading.';
+  try {
+    const input = await askClaude(buildRequest(profile, { posting: source.text, notes, knowledge, ...opts }), 'submit_resume');
+    const issues = validateResult(input, profile, { ...opts, knowledge });
+    acceptResult(input, issues, opts, current.link, { replaceId: current.id, source, notes });
+    msg.textContent = '';
+    if ($('regen-dialog').open) $('regen-dialog').close();
+    const paper = $('resume');
+    paper.classList.remove('fresh');
+    void paper.offsetWidth;
+    paper.classList.add('fresh');
+    navigator.vibrate?.(12);
+    const n = questions.length;
+    toast(`New draft ready.${n ? ` ${n} question${n === 1 ? '' : 's'} for you.` : ''}`, snapshot ? { label: 'Undo', run: () => undoRegenerate(snapshot) } : null);
+  } catch (err) {
+    msg.textContent = err.message;
+  } finally {
+    regenerating = false;
+    $('regen').removeAttribute('aria-busy');
+    setBusy($('regen-go'), false);
+  }
+}
+
+function undoRegenerate(snapshot) {
+  history = history.map((e) => (e.id === snapshot.id ? snapshot : e));
+  persistHistory();
+  loadEntry(snapshot);
+  renderHistory();
+  toast('Restored the previous draft.');
 }
 
 function loadEntry(entry) {
@@ -1268,6 +1335,15 @@ async function init() {
   });
   $('toggle-notes').addEventListener('click', () => setNotesOpen($('notes-field').hidden));
   // resume
+  $('regen').addEventListener('click', openRegenerate);
+  $('regen-go').addEventListener('click', regenerate);
+  $('regen-ideas').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-idea]');
+    if (!b) return;
+    const t = $('regen-notes');
+    if (!t.value.includes(b.dataset.idea)) t.value = `${t.value.trim()} ${b.dataset.idea}`.trim();
+    navigator.vibrate?.(6);
+  });
   $('copy').addEventListener('click', () => writeClipboard(current.text, 'Copied the full resume.'));
   $('download').addEventListener('click', download);
   $('pdf').addEventListener('click', () => { if (editing) toggleEdit(); makePdf(); });

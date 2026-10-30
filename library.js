@@ -1,7 +1,7 @@
 // Turns Kevin's saved answers into edits to the master profile, the way a chat session would:
 // reworded bullets on the right role, resolved wording conflicts, corrected dates and titles.
 // Claude proposes the edits; everything here is deterministic and checks them before they are applied.
-import { slug } from './knowledge.js?v=24';
+import { slug } from './knowledge.js?v=25';
 
 export const LIBRARIAN_SYSTEM = `You maintain Kevin Broadie's master resume library (a JSON profile). Kevin has given you answers, corrections, and choices. Turn them into precise edits to the library, as a careful editor would.
 
