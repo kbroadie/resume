@@ -900,6 +900,43 @@
           "text": "Created and maintained client websites using WordPress, supporting SEO best practices, WCAG accessibility standards, and WooCommerce, and guided the visual design, UX, and UI of websites in collaboration with developers."
         },
         {
+          "id": "ko.miro.wire",
+          "text": "Used Miro for remote, collaborative, low-fidelity wireframe prototyping of websites.",
+          "tags": [
+            "miro",
+            "wireframing",
+            "prototyping",
+            "web",
+            "ux",
+            "remote",
+            "collaboration"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.miro.present",
+          "text": "Used Miro to present mid-fidelity prototypes to clients.",
+          "tags": [
+            "miro",
+            "prototyping",
+            "presentations",
+            "clients",
+            "ux"
+          ],
+          "status": "verified"
+        },
+        {
+          "id": "ko.figma",
+          "text": "Created Figma templates for clients who were already using Figma.",
+          "tags": [
+            "figma",
+            "templates",
+            "clients",
+            "design"
+          ],
+          "status": "verified"
+        },
+        {
           "id": "ko.livestream",
           "status": "verified",
           "tags": [
@@ -1600,6 +1637,11 @@
       "category": "Design"
     },
     {
+      "id": "sk.figma",
+      "name": "Figma",
+      "category": "Design"
+    },
+    {
       "id": "sk.brand",
       "name": "Brand standards and guidelines",
       "category": "Design"
@@ -1669,6 +1711,11 @@
     {
       "id": "sk.teams",
       "name": "Microsoft Teams",
+      "category": "Office and collaboration"
+    },
+    {
+      "id": "sk.miro",
+      "name": "Miro",
       "category": "Office and collaboration"
     },
     {

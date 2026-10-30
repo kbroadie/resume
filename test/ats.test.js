@@ -120,7 +120,7 @@ test('only safe suggestions survive: real line, posting keyword, cited sources, 
     { kind: 'ats', text: 'Spell out LTCAP once.' },
     { kind: 'ats', text: '   ' },
     { kind: 'rephrase', keyword: 'grant', replaces: d.summary, text: 'Designer with 27+ years of experience in grant presentation design.', source_ids: ['cvag'] }
-    , good({ keyword: 'Figma', text: 'Co-facilitated grant work using Figma for the ACCESS Indian Canyon project, which earned a $50 million LTCAP grant.' }),
+    , good({ keyword: 'Axure', text: 'Co-facilitated grant work using Axure for the ACCESS Indian Canyon project, which earned a $50 million LTCAP grant.' }),
     good({ text: 'Co-facilitated grant applications for the ACCESS Indian Canyon project, using agile stakeholder roadmaps, which earned a $50 million LTCAP grant.' })
   ], { doc: d, knownText: known, libraryText });
   assert.deepEqual(kept.map((s) => s.kind + ':' + (s.keyword || s.text.slice(0, 10))), ['rephrase:grant applications', 'ats:Spell out ', 'rephrase:grant']);
