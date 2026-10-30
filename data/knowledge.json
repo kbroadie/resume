@@ -1,8 +1,22 @@
 {
   "version": 1,
-  "answered": {},
+  "answered": {
+    "survey-app-prototyping": {
+      "question": "Did you prototype or test the survey app with users before launch? If so, add how, and what changed. That would support the posting's prototyping and testing requirements.",
+      "answer": "Yes. Touch screen tv in a conference room with only transportation department director and managers as an audience and the executive director giving the presentation. I gave the ED a minimal overview of the navigation, how the math works, and the results page. I observed the ED intently, looking at efficiency of movement, micro expressions of uncertainty or frustration, and felt the engagement energy of the room. Afterwards I shared my observations and refinement ideas with the ED who also gave me his feedback. I'd make the changes then do a stress test in the real presentation setting then refine on the spot.",
+      "at": "2026-10-30T06:37:50.148Z"
+    }
+  },
   "choices": {},
-  "facts": {},
+  "facts": {
+    "k.survey-app-prototyping.mvulonno": {
+      "id": "k.survey-app-prototyping.mvulonno",
+      "topic": "survey-app-prototyping",
+      "role_id": "cvag",
+      "text": "Yes. Touch screen tv in a conference room with only transportation department director and managers as an audience and the executive director giving the presentation. I gave the ED a minimal overview of the navigation, how the math works, and the results page. I observed the ED intently, looking at efficiency of movement, micro expressions of uncertainty or frustration, and felt the engagement energy of the room. Afterwards I shared my observations and refinement ideas with the ED who also gave me his feedback. I'd make the changes then do a stress test in the real presentation setting then refine on the spot.",
+      "at": "2026-10-30T06:37:50.148Z"
+    }
+  },
   "preferences": {},
   "dismissed": {},
   "notes": {
