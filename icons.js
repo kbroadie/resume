@@ -3,6 +3,9 @@
 
 const PATHS = {
   refresh: '<path d="M20 11a8 8 0 0 0-14.6-4.4L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.6 4.4L20 15.5M20 20v-4.5h-4.5"/>',
+  send: '<path d="M12 19V6M6.5 11.5L12 6l5.5 5.5"/>',
+  gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l3.8-5"/><path d="M12 17h.01"/>',
+  chevron: '<path d="M9 6l6 6-6 6"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
   download: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',

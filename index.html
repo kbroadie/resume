@@ -20,7 +20,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body>
   <header class="appbar">
@@ -129,10 +129,11 @@
           </div>
           <div class="stats">
             <span id="stat-words" class="pill"></span>
-            <button id="stat-system" type="button" class="pill pill-btn" hidden></button>
             <button id="stat-checks" type="button" class="pill pill-btn"></button>
             <button id="stat-edited" type="button" class="pill pill-btn" hidden>Edited. Revert</button>
           </div>
+
+          <section id="fit-strip" class="fit-strip" aria-label="Fit with the posting" hidden></section>
 
           <div id="regen-banner" class="banner regen-banner" hidden>
             <i data-icon="question"></i>
@@ -159,10 +160,14 @@
           <textarea id="resume-edit" class="paper-edit" aria-label="Edit resume text" hidden spellcheck="true"></textarea>
           <p class="hint tap-hint">Tap Copy beside a section or a job to fill one form field at a time.</p>
 
-          <details class="fold">
-            <summary><span><i data-icon="lines"></i>Fit to the posting</span></summary>
-            <p id="fit" class="fit"></p>
-          </details>
+          <form id="composer" class="composer" autocomplete="off">
+            <p id="composer-msg" class="composer-msg" role="status" aria-live="polite" hidden></p>
+            <div class="composer-row">
+              <textarea id="composer-text" rows="1" aria-label="Ask for changes to this resume" placeholder="Ask for a change, like “lead with grant writing”" enterkeyhint="send"></textarea>
+              <button id="composer-send" type="submit" class="send" aria-label="Send request" disabled><i data-icon="send"></i></button>
+            </div>
+          </form>
+
         </div>
       </section>
 
@@ -177,6 +182,10 @@
         </div>
         <div id="improve-body" hidden>
           <header class="view-title"><i data-icon="sparkle"></i><div><h2>Improve</h2><p id="improve-sub"></p></div></header>
+
+          <section id="fit-detail" class="sec fit-detail" aria-labelledby="fit-h"></section>
+
+          <div class="flourish-row" data-flourish></div>
 
           <section class="sec" aria-labelledby="cov-h">
             <div class="sec-head"><i data-icon="target"></i><h3 id="cov-h">Keyword coverage</h3><span id="cov-text" class="sec-meta"></span></div>
@@ -217,10 +226,6 @@
             <ul id="ats-list" class="cards"></ul>
           </section>
 
-          <section class="sec" aria-labelledby="sys-h">
-            <div class="sec-head"><i data-icon="building"></i><h3 id="sys-h">Application system</h3></div>
-            <button id="sys-open" type="button" class="btn block"><i data-icon="building"></i><span id="sys-open-text">Check which system takes this application</span></button>
-          </section>
         </div>
       </section>
 
@@ -376,12 +381,6 @@
     <pre id="posting-view" class="posting-view"></pre>
   </dialog>
 
-  <!-- Application system -->
-  <dialog id="app-dialog" class="sheet" aria-labelledby="app-h">
-    <div class="sheet-head"><h2 id="app-h">Application system</h2><button type="button" class="chip-btn" data-close>Done</button></div>
-    <div id="app-body"></div>
-  </dialog>
-
   <!-- Library merge review -->
   <dialog id="review-dialog" class="sheet" aria-labelledby="review-h">
     <div class="sheet-head"><h2 id="review-h">Library changes</h2><button type="button" class="chip-btn" data-close>Close</button></div>
@@ -390,6 +389,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=26"></script>
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>

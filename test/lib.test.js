@@ -181,3 +181,12 @@ test("meet-the-museum, Raisers Edge, portfolio, caregiving and team-lead answers
   assert.match(profile.roles.find((r) => r.id === 'konsist').bullets.find((b) => b.id === 'ko.team').text, /^Led designers and programmers/);
   assert.match(buildRequest(profile, { posting: 'x', now }).user, /no portfolio yet/);
 });
+
+test('a revision request sends the current draft, and the prompt tells Claude to start from it', async () => {
+  const { buildRequest, SYSTEM_PROMPT } = await import('../lib.js');
+  const withDraft = buildRequest(profile, { posting: 'Posting text.', notes: 'Lead with grants.', draft: 'KEVIN BROADIE\nDraft line.' });
+  assert.match(withDraft.user, /<CURRENT_DRAFT>\nKEVIN BROADIE\nDraft line\.\n<\/CURRENT_DRAFT>/);
+  assert.doesNotMatch(buildRequest(profile, { posting: 'Posting text.' }).user, /CURRENT_DRAFT/);
+  assert.match(SYSTEM_PROMPT, /CURRENT_DRAFT/);
+  assert.doesNotMatch(SYSTEM_PROMPT, /fit_notes/);
+});
