@@ -1087,6 +1087,16 @@
             "communication"
           ],
           "status": "verified"
+        },
+        {
+          "id": "konsist.presented-mid-fidelity",
+          "status": "verified",
+          "tags": [
+            "miro",
+            "prototyping",
+            "client-presentations"
+          ],
+          "text": "Presented mid-fidelity prototypes to clients in Miro."
         }
       ]
     },
@@ -1892,6 +1902,11 @@
       "id": "sk.tms",
       "name": "The Museum System (TMS) collections database",
       "category": "IT"
+    },
+    {
+      "id": "sk.miro-remote-collaborativ",
+      "name": "Miro (remote collaborative wireframing and prototyping)",
+      "category": "Other"
     }
   ],
   "education": [
