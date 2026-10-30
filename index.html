@@ -17,7 +17,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
   <header class="appbar">
@@ -133,6 +133,9 @@
             <summary><span>Suggested rephrasings</span><span id="sug-count" class="fold-meta"></span></summary>
             <p class="hint">Each one uses your own library, worded to match the posting. Apply swaps it into the resume.</p>
             <ul id="suggestions" class="cards"></ul>
+            <button id="sug-more" type="button" class="btn tonal block">Suggest more for the missing keywords</button>
+            <p id="sug-status" class="hint" role="status"></p>
+            <div id="sug-unsupported" class="hint"></div>
           </details>
           <details class="fold" id="ats-fold">
             <summary><span>Applicant tracking check</span><span id="ats-count" class="fold-meta"></span></summary>
@@ -267,6 +270,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=18"></script>
+  <script type="module" src="app.js?v=20"></script>
 </body>
 </html>

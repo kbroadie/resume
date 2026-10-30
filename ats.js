@@ -1,7 +1,7 @@
 // Applicant tracking: which system takes the application, what it typically wants, how well the resume suits
 // an automated reader, and rephrasing suggestions that stay inside the library.
 
-import { keywordCoverage, webFetchTool } from './lib.js?v=18';
+import { keywordCoverage, webFetchTool, splitProfile } from './lib.js?v=20';
 
 /* ---------- application systems ---------- */
 
@@ -228,7 +228,15 @@ const numbersOf = (t) => (String(t).match(NUMBER_RE) || []).map((n) => n.replace
 // posting's keyword, cite library entries, and add no number their sources do not already carry.
 const STOP = new Set(['a', 'an', 'and', 'the', 'of', 'to', 'in', 'for', 'with', 'on', 'at', 'by', 'or', 'as', 'is', 'that', 'which', 'from', 'into', 'across']);
 const words = (t) => (String(t).toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => !STOP.has(w));
-const stem = (w) => w.replace(/(ing|ed|es|s)$/, '');
+// A light stemmer, enough to see that "engagement" and "engage", or "applications" and "application", are one word.
+const stem = (w) => {
+  let s = w;
+  for (const suffix of [/ations?$/, /ments?$/, /ings?$/, /ions?$/, /ers?$/, /ly$/, /ed$/, /es$/, /s$/]) {
+    const next = s.replace(suffix, '');
+    if (next !== s && next.length >= 4) { s = next; break; }
+  }
+  return s.replace(/e$/, '');
+};
 
 export function checkSuggestions(suggestions, { doc, knownText, libraryText = '' }) {
   const library = new Set(words(libraryText).map(stem));
@@ -273,5 +281,73 @@ export function buildFormRequest(applyUrl, model, { basic = false } = {}) {
     tools: [webFetchTool(model, applyUrl, { basic }), FORM_TOOL],
     tool_choice: { type: 'auto' },
     user: `Read this online application page and report what it asks of the applicant: ${applyUrl}`
+  };
+}
+
+/* ---------- asking for more rephrasings ---------- */
+
+export const SUGGEST_SYSTEM = `You help Kevin Broadie's resume read naturally to an applicant tracking system and to a person, by rewording lines he already has so they use the posting's own terms.
+
+You are given his resume as it stands, the posting terms it is missing, and his full library of verified facts.
+
+RULES
+1. Only reword. A rewording may use a posting term only if the library already says the same thing in other words. Never add a tool, result, number, duty, or claim. Keep every number exactly.
+2. Make each rewording read as a natural sentence a good editor would write. Do not append a keyword, stack terms, or repeat the term in one line. Prefer swapping a near-synonym that is already there ("grant writing" to "grant applications"). Keep the bullet's length close to the original.
+3. Spread terms across different bullets and the summary. Use at most one posting term per bullet, except where two belong together in the posting itself.
+4. For each missing term, either give one rewording or, if the library does not support it, list it in "unsupported" with one plain sentence saying what is missing. Kevin can then teach the library if it is true.
+5. "replaces" must be copied exactly from the resume text given. "text" must contain the term exactly as the posting words it. Cite the library ids that support it in source_ids.
+6. Do not repeat a rewording already offered. Do not suggest anything for terms already in the resume.
+Respond only by calling submit_suggestions, once.`;
+
+export const SUGGEST_TOOL = {
+  name: 'submit_suggestions',
+  description: 'Submit natural rewordings that use missing posting terms, and the terms the library cannot support.',
+  input_schema: {
+    type: 'object',
+    required: ['suggestions', 'unsupported'],
+    properties: {
+      suggestions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['kind', 'keyword', 'replaces', 'text', 'source_ids', 'why'],
+          properties: {
+            kind: { type: 'string', enum: ['rephrase'] },
+            keyword: { type: 'string' },
+            replaces: { type: 'string', description: 'The exact current text of one bullet or the summary.' },
+            text: { type: 'string', description: 'The reworded line, natural and close in length to the original.' },
+            source_ids: { type: 'array', items: { type: 'string' } },
+            why: { type: 'string', description: 'One short sentence.' }
+          }
+        }
+      },
+      unsupported: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['keyword', 'why'],
+          properties: { keyword: { type: 'string' }, why: { type: 'string' } }
+        }
+      }
+    }
+  }
+};
+
+export function buildSuggestRequest(profile, { doc, missing, offered = [], includePersonalLine = true, knowledge = null }) {
+  const { usable } = splitProfile(profile, { includePersonalLine, knowledge });
+  const resume = {
+    summary: doc.summary,
+    jobs: doc.experience.map((x) => ({ title: x.title, employer: x.org, bullets: x.bullets }))
+  };
+  return {
+    system: SUGGEST_SYSTEM,
+    tools: [SUGGEST_TOOL],
+    tool_choice: { type: 'auto' },
+    user: [
+      '<RESUME>', JSON.stringify(resume), '</RESUME>',
+      '<MISSING_TERMS>', JSON.stringify(missing), '</MISSING_TERMS>',
+      '<ALREADY_OFFERED>', JSON.stringify(offered.map((s) => ({ keyword: s.keyword, text: s.text }))), '</ALREADY_OFFERED>',
+      '<LIBRARY>', JSON.stringify(usable), '</LIBRARY>'
+    ].join('\n')
   };
 }

@@ -143,3 +143,30 @@ test('the resume tool asks for suggestions with sources', () => {
   const s = RESUME_TOOL.input_schema.properties.suggestions.items.properties;
   for (const f of ['kind', 'keyword', 'replaces', 'text', 'source_ids', 'why']) assert.ok(s[f], f);
 });
+
+import { buildSuggestRequest, SUGGEST_TOOL, SUGGEST_SYSTEM } from '../ats.js';
+
+test('asking for more rephrasings sends the resume as it stands, the missing terms, and the library', () => {
+  const d = doc();
+  const req = buildSuggestRequest(profile, { doc: d, missing: ['grant applications', 'stakeholder engagement'], offered: [{ kind: 'rephrase', keyword: 'WordPress', text: 'x' }], includePersonalLine: false });
+  assert.deepEqual(req.tool_choice, { type: 'auto' });
+  assert.equal(req.tools[0], SUGGEST_TOOL);
+  assert.match(req.user, /<MISSING_TERMS>\s*\["grant applications","stakeholder engagement"\]/);
+  assert.match(req.user, /Co-facilitated grant writing for the ACCESS Indian Canyon/);
+  assert.match(req.user, /<LIBRARY>/);
+  assert.match(req.user, /"keyword":"WordPress"/);
+  assert.match(SUGGEST_SYSTEM, /natural sentence/);
+  assert.match(SUGGEST_SYSTEM, /Never add a tool, result, number, duty, or claim/);
+  assert.ok(SUGGEST_TOOL.input_schema.required.includes('unsupported'));
+});
+
+test('related word forms count as the same library term, so natural rewordings are not refused', () => {
+  const d = doc();
+  const lib = 'Engaged stakeholders and prioritized regional transportation projects. Wrote grant applications.';
+  const ok = checkSuggestions([{ kind: 'rephrase', keyword: 'stakeholder engagement', replaces: d.experience[1].bullets[0], text: 'Maintained classified and real estate databases for stakeholder engagement.', source_ids: ['ds.db'], why: 'x' }],
+    { doc: d, knownText: () => 'Maintained classified and real estate databases.', libraryText: lib });
+  assert.equal(ok.length, 1);
+  const bad = checkSuggestions([{ kind: 'rephrase', keyword: 'Kubernetes', replaces: d.experience[1].bullets[0], text: 'Maintained classified and real estate databases on Kubernetes.', source_ids: ['ds.db'], why: 'x' }],
+    { doc: d, knownText: () => 'Maintained classified and real estate databases.', libraryText: lib });
+  assert.equal(bad.length, 0);
+});

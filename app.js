@@ -1,17 +1,17 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=18';
-import { buildPdf, docFromText } from './pdf.js?v=18';
+} from './lib.js?v=20';
+import { buildPdf, docFromText } from './pdf.js?v=20';
 import {
-  SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails
-} from './ats.js?v=18';
+  SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails, buildSuggestRequest
+} from './ats.js?v=20';
 import {
   emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=18';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=18';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=18';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=18';
+} from './knowledge.js?v=20';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=20';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=20';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=20';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -456,7 +456,7 @@ function loadEntry(entry) {
     title: entry.title, company: entry.company, link: entry.link, location: entry.location,
     issues: entry.issues || [], keywords: entry.keywords || { covered: [], missing: [] }, fit: entry.fit || '',
     postingKeywords: entry.postingKeywords || [], suggestions: entry.suggestions || [],
-    system: entry.system || null, applyUrl: entry.applyUrl || '', form: entry.form || null
+    system: entry.system || null, applyUrl: entry.applyUrl || '', form: entry.form || null, unsupported: entry.unsupported || []
   };
   renderCurrent();
 }
@@ -506,9 +506,15 @@ function renderCurrent() {
 function renderSuggestions() {
   const c = current;
   const items = c.suggestions || [];
-  $('sug-fold').hidden = items.length === 0;
+  const missing = c.keywords.missing.length;
+  $('sug-fold').hidden = items.length === 0 && missing === 0;
   const open = items.filter((s) => !s.applied && !s.dismissed).length;
-  $('sug-count').textContent = items.length ? `${open} open` : '';
+  $('sug-count').textContent = items.length ? `${open} open` : missing ? `${missing} keyword${missing === 1 ? '' : 's'} missing` : '';
+  $('sug-more').hidden = missing === 0;
+  $('sug-more').textContent = `Suggest more for the ${missing} missing keyword${missing === 1 ? '' : 's'}`;
+  $('sug-unsupported').innerHTML = (c.unsupported || []).length
+    ? `<h3>Not in your library</h3><ul class="tips">${c.unsupported.map((u) => `<li><strong>${esc(u.keyword)}.</strong> ${esc(u.why)}</li>`).join('')}</ul><p>If one is true for you, add it under Teach on the Library tab and tailor again.</p>`
+    : '';
   $('suggestions').innerHTML = items.map((s, i) => {
     if (s.dismissed) return '';
     if (s.kind === 'ats') return `<li class="sug"><span class="tag">Tip</span><p class="now">${esc(typo(s.text))}</p></li>`;
@@ -538,6 +544,34 @@ function renderAts() {
 function saveEntry(patch) {
   history = updateEntry(history, current.id, patch);
   store.set(HISTORY_STORE, JSON.stringify(history));
+}
+
+// Asks for natural rewordings that cover the keywords the resume still lacks, then keeps only the safe ones.
+async function suggestMore() {
+  const missing = current.keywords.missing;
+  if (!missing.length) return;
+  const status = $('sug-status');
+  setBusy($('sug-more'), true, 'Finding natural wording...');
+  status.textContent = '';
+  try {
+    const opts = { includePersonalLine: $('personal').checked, knowledge };
+    const req = buildSuggestRequest(profile, { doc: current.doc, missing, offered: current.suggestions.filter((s) => s.kind === 'rephrase'), ...opts });
+    const input = await askClaude(req, 'submit_suggestions');
+    const known = sourceTextLookup(profile, opts);
+    const fresh = checkSuggestions(input.suggestions, { doc: current.doc, knownText: known, libraryText: known.all() })
+      .filter((s) => s.kind === 'rephrase' && !current.suggestions.some((o) => o.kind === 'rephrase' && (o.keyword || '').toLowerCase() === s.keyword.toLowerCase() && o.replaces === s.replaces && !o.dismissed));
+    current.suggestions = [...current.suggestions, ...fresh];
+    current.unsupported = (input.unsupported || []).filter((u) => u?.keyword && u?.why).map((u) => ({ keyword: String(u.keyword), why: String(u.why) }));
+    saveEntry({ suggestions: current.suggestions, unsupported: current.unsupported });
+    renderSuggestions();
+    status.textContent = fresh.length
+      ? `${fresh.length} new suggestion${fresh.length === 1 ? '' : 's'}.`
+      : 'Nothing safe to add. Every other missing term needs something your library does not yet say.';
+  } catch (err) {
+    status.textContent = err.message;
+  } finally {
+    setBusy($('sug-more'), false);
+  }
 }
 
 function onSuggestion(event) {
@@ -1028,6 +1062,7 @@ async function init() {
   $('download').addEventListener('click', download);
   $('pdf').addEventListener('click', () => { if (editing) toggleEdit(); makePdf(); });
   $('suggestions').addEventListener('click', onSuggestion);
+  $('sug-more').addEventListener('click', suggestMore);
   $('stat-system').addEventListener('click', () => { renderSystemDialog(); showDialog('app-dialog'); });
   $('edit').addEventListener('click', toggleEdit);
   $('stat-edited').addEventListener('click', revertEdit);
