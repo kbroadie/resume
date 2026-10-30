@@ -1,13 +1,17 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
-  sectionTexts, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting
-} from './lib.js?v=13';
+  sectionTexts, typo, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
+} from './lib.js?v=18';
+import { buildPdf, docFromText } from './pdf.js?v=18';
+import {
+  SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails
+} from './ats.js?v=18';
 import {
   emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=13';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=13';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=13';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=13';
+} from './knowledge.js?v=18';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=18';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=18';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=18';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -284,11 +288,15 @@ function renderBadges() {
   qb.textContent = String(open);
 }
 
-/* ---------- draft (so a reload never loses the posting) ---------- */
+/* ---------- the posting: read from the link by default, pasted as a fallback ---------- */
+
+// The posting is never edited on this page. It is either read from the link or accepted from the clipboard,
+// and the page only shows that it arrived. View shows the text read-only.
+let posting = { text: '', source: '', link: '', title: '', company: '', applyUrl: '', systemHint: '' };   // source: 'link' | 'pasted' | ''
 
 function saveDraft() {
   store.set(DRAFT_STORE, JSON.stringify({
-    posting: $('posting').value, applink: $('applink').value, notes: $('notes').value,
+    applink: $('applink').value, posting, notes: $('notes').value,
     shorttitles: $('shorttitles').checked, personal: $('personal').checked
   }));
 }
@@ -296,26 +304,49 @@ function saveDraft() {
 function restoreDraft() {
   const d = store.json(DRAFT_STORE, null);
   if (d) {
-    $('posting').value = d.posting || '';
     $('applink').value = d.applink || '';
+    if (d.posting?.text) posting = { text: '', source: '', link: '', title: '', company: '', ...d.posting };
     $('notes').value = d.notes || '';
     $('shorttitles').checked = Boolean(d.shorttitles);
     $('personal').checked = d.personal !== false;
     if (d.notes) setNotesOpen(true);
   }
-  updatePostingCount();
+  renderPosting();
 }
 
-const POSTING_PLACEHOLDER = 'Paste the full posting: title, duties, requirements.';
-const POSTING_PLACEHOLDER_LINK = 'Optional. Leave this empty and Claude will read the posting from your application link.';
+function renderPosting() {
+  const has = Boolean(posting.text);
+  $('paste-empty').hidden = has;
+  $('paste-done').hidden = !has;
+  if (has) {
+    const n = wordCount(posting.text);
+    $('posting-summary').textContent = posting.source === 'link' ? `Read from the link. ${n} words.` : `Pasted from your clipboard. ${n} words.`;
+  }
+  updateLinkUi();
+}
 
-// With a valid link the pasted posting becomes optional, and the box says so.
-function updatePostingCount() {
-  const n = wordCount($('posting').value);
+function updateLinkUi() {
   const linkOk = Boolean(normalizeUrl($('applink').value));
-  $('posting-count').textContent = n ? `${n} words` : linkOk ? 'Optional with a link' : '';
-  $('posting').placeholder = linkOk ? POSTING_PLACEHOLDER_LINK : POSTING_PLACEHOLDER;
-  $('fetch').hidden = !linkOk;
+  $('fetch').hidden = !linkOk || Boolean(posting.text);
+  $('link-hint').textContent = !posting.text
+    ? 'Claude reads the posting from this link and shows you what it found.'
+    : posting.source === 'link' ? 'Read from this link. Clear it to read the page again.' : 'The pasted text will be used. The link is kept with your resume.';
+}
+
+function setPosting(text, source, extra = {}) {
+  posting = { text: String(text).trim(), source: text ? source : '', link: extra.link || '', title: extra.title || '', company: extra.company || '', applyUrl: extra.applyUrl || '', systemHint: extra.systemHint || '' };
+  renderPosting();
+  saveDraft();
+}
+
+// Accepts text from the clipboard. Returns true when it looks like a posting and was taken.
+function acceptPasted(raw) {
+  const text = String(raw || '').trim();
+  $('paste-catch').value = '';
+  if (text.length < 40) { toast('That did not look like a posting. Copy the whole posting and try again.'); return false; }
+  setPosting(text, 'pasted');
+  toast(`Posting accepted. ${wordCount(text)} words.`);
+  return true;
 }
 
 function setNotesOpen(open) {
@@ -344,20 +375,18 @@ const fetchHint = (message) => (/web.?fetch|not enabled|permission/i.test(messag
   ? `${sentence(message)} Reading links needs web fetch to be allowed for your Anthropic organization. Paste the posting text instead.`
   : `${sentence(message)} Paste the posting text instead.`);
 
-// Fills the posting box from the link. Returns true when the posting text is now in the box.
+// Reads the posting from the link and stores it. Returns true when the posting text is now held.
 async function fillPostingFromLink(link, msg) {
   msg.textContent = 'Reading the posting from your link...';
   try {
     const got = await readPostingFromLink(link);
-    if (!got.ok) { msg.textContent = fetchHint(`Could not read that page: ${got.problem}`); $('posting').focus(); return false; }
-    $('posting').value = got.text;
-    updatePostingCount();
-    saveDraft();
-    toast(`Read the posting${got.title ? `: ${got.title}` : ''}. Review it below.`);
+    if (!got.ok) { msg.textContent = fetchHint(`Could not read that page: ${got.problem}`); $('paste-catch').focus(); return false; }
+    setPosting(got.text, 'link', { link, title: got.title, company: got.company, applyUrl: got.applyUrl, systemHint: got.systemHint });
+    toast(`Read the posting${got.title ? `: ${got.title}` : ''}. Tap View to check it.`);
     return true;
   } catch (err) {
     msg.textContent = fetchHint(`Could not read that page: ${err.message}`);
-    $('posting').focus();
+    $('paste-catch').focus();
     return false;
   }
 }
@@ -372,17 +401,17 @@ async function generate(event) {
   const link = normalizeUrl(rawLink);
   if (rawLink && !link) { msg.textContent = 'That application link does not look right. Use a full web address.'; $('applink').focus(); return; }
   if (link) $('applink').value = link;
-  if (!$('posting').value.trim() && !link) { msg.textContent = 'Paste the posting, or add its application link and leave the box empty.'; $('posting').focus(); return; }
+  if (!posting.text && !link) { msg.textContent = 'Add the link to the posting, or paste its text.'; $('applink').focus(); return; }
   if (!$('location').value) { msg.textContent = 'Choose a location for this resume.'; $('location').focus(); return; }
 
   const opts = { includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
   store.set(LOCATION_STORE, opts.locationId);
   setBusy($('go'), true, 'Working...');
   try {
-    // No pasted posting: read it from the link first, then show it so it can be checked.
-    if (!$('posting').value.trim() && !(await fillPostingFromLink(link, msg))) return;
+    // No pasted text: read the posting from the link first.
+    if (!posting.text && !(await fillPostingFromLink(link, msg))) return;
     saveDraft();
-    const req = buildRequest(profile, { posting: $('posting').value.trim(), notes: $('notes').value, knowledge, ...opts });
+    const req = buildRequest(profile, { posting: posting.text, notes: $('notes').value, knowledge, ...opts });
     msg.textContent = 'Tailoring. This usually takes 20 to 60 seconds.';
     const input = await askClaude(req, 'submit_resume');
     const issues = validateResult(input, profile, { ...opts, knowledge });
@@ -399,9 +428,13 @@ function acceptResult(result, issues, opts, link) {
   const doc = buildDoc(result, profile, { ...opts, knowledge });
   const text = renderText(doc);
   const locationLabel = profile.contact.locations.find((l) => l.id === opts.locationId)?.label || '';
+  const known = sourceTextLookup(profile, { includePersonalLine: opts.includePersonalLine, knowledge });
+  const system = identifySystem({ applyUrl: posting.applyUrl, link, hint: posting.systemHint });
   const entryData = {
     title: result.posting_title || '', company: result.company || '', link: link || '', location: locationLabel,
-    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: result.fit_notes || ''
+    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: result.fit_notes || '',
+    postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
+    system, applyUrl: posting.applyUrl || '', form: null
   };
   const added = addEntry(history, entryData);
   history = added.list;
@@ -421,7 +454,9 @@ function loadEntry(entry) {
   current = {
     id: entry.id, doc: entry.doc, generated, text: entry.text, edited: entry.text !== generated,
     title: entry.title, company: entry.company, link: entry.link, location: entry.location,
-    issues: entry.issues || [], keywords: entry.keywords || { covered: [], missing: [] }, fit: entry.fit || ''
+    issues: entry.issues || [], keywords: entry.keywords || { covered: [], missing: [] }, fit: entry.fit || '',
+    postingKeywords: entry.postingKeywords || [], suggestions: entry.suggestions || [],
+    system: entry.system || null, applyUrl: entry.applyUrl || '', form: entry.form || null
   };
   renderCurrent();
 }
@@ -431,7 +466,7 @@ function renderCurrent() {
   $('resume-empty').hidden = true;
   $('resume-body').hidden = false;
   $('res-title').textContent = c.title || 'Tailored resume';
-  $('res-sub').textContent = [c.company, c.location].filter(Boolean).join(' | ');
+  $('res-sub').textContent = [c.company, c.location].filter(Boolean).join(' \u00B7 ');
   const linkEl = $('res-link');
   linkEl.hidden = !c.link;
   if (c.link) linkEl.href = c.link;
@@ -459,6 +494,68 @@ function renderCurrent() {
   $('kw-fold').hidden = total === 0;
   $('kw-chips').innerHTML = [...kw.covered.map((k) => `<span class="hit">${esc(k)}</span>`), ...kw.missing.map((k) => `<span class="miss">${esc(k)}</span>`)].join('');
   $('fit').textContent = c.fit;
+
+  const sys = $('stat-system');
+  sys.hidden = false;
+  sys.textContent = c.system ? c.system.name : 'Application system?';
+  sys.className = `pill pill-btn ${c.system ? 'sys' : ''}`;
+  renderSuggestions();
+  renderAts();
+}
+
+function renderSuggestions() {
+  const c = current;
+  const items = c.suggestions || [];
+  $('sug-fold').hidden = items.length === 0;
+  const open = items.filter((s) => !s.applied && !s.dismissed).length;
+  $('sug-count').textContent = items.length ? `${open} open` : '';
+  $('suggestions').innerHTML = items.map((s, i) => {
+    if (s.dismissed) return '';
+    if (s.kind === 'ats') return `<li class="sug"><span class="tag">Tip</span><p class="now">${esc(typo(s.text))}</p></li>`;
+    const stale = !s.applied && !suggestionTarget(s);
+    return `<li class="sug" data-i="${i}"><span class="tag">${esc(s.keyword)}</span>
+      <p class="was">${esc(typo(s.replaces))}</p><p class="now">${esc(typo(s.text))}</p>
+      ${s.why ? `<p class="why">${esc(typo(s.why))}</p>` : ''}
+      ${s.applied ? '<p class="applied">Applied</p>' : stale ? '<p class="why">This line has changed, so the suggestion no longer fits.</p>'
+        : `<div class="sug-actions"><button type="button" class="btn primary" data-sug="apply">Apply</button><button type="button" class="btn" data-sug="dismiss">Dismiss</button></div>`}</li>`;
+  }).join('') || '<li>No suggestions left.</li>';
+}
+
+// The line a suggestion would replace, if it is still in the resume as written.
+function suggestionTarget(s) {
+  if (s.where?.summary) return current.doc.summary === s.replaces;
+  return s.where && current.doc.experience[s.where.ri]?.bullets[s.where.bi] === s.replaces;
+}
+
+function renderAts() {
+  const c = current;
+  const checks = atsLint({ text: c.text, doc: c.doc, keywords: c.postingKeywords, postingTitle: c.title });
+  const review = checks.filter((x) => !x.ok).length;
+  $('ats-count').textContent = review ? `${review} to review` : 'All clear';
+  $('ats-list').innerHTML = checks.map((x) => `<li class="ats-row ${x.ok ? 'ok' : 'warn'}"><i>${x.ok ? '\u2713' : '!'}</i><div>${esc(x.label)}<small>${esc(x.detail)}</small></div></li>`).join('');
+}
+
+function saveEntry(patch) {
+  history = updateEntry(history, current.id, patch);
+  store.set(HISTORY_STORE, JSON.stringify(history));
+}
+
+function onSuggestion(event) {
+  const btn = event.target.closest('button[data-sug]');
+  const li = event.target.closest('li[data-i]');
+  if (!btn || !li) return;
+  const s = current.suggestions[Number(li.dataset.i)];
+  if (btn.dataset.sug === 'dismiss') { s.dismissed = true; saveEntry({ suggestions: current.suggestions }); renderSuggestions(); return; }
+  if (current.edited) { toast('Revert your edits first, then apply suggestions.'); return; }
+  if (!suggestionTarget(s)) { renderSuggestions(); return; }
+  current.doc = applySuggestion(current.doc, s);
+  current.text = renderText(current.doc);
+  current.generated = current.text;
+  current.keywords = keywordCoverage(current.postingKeywords, current.text);
+  s.applied = true;
+  saveEntry({ doc: current.doc, text: current.text, originalText: current.text, keywords: current.keywords, suggestions: current.suggestions });
+  renderCurrent();
+  toast('Applied.');
 }
 
 // One Copy button per section and per job, so a single application field can be filled with one tap.
@@ -491,6 +588,95 @@ function copySection(target) {
   const texts = sectionTexts(current.doc);
   const text = target.startsWith('role:') ? texts.roles[Number(target.slice(5))] : texts[target];
   if (text) writeClipboard(text, 'Copied.');
+}
+
+async function makePdf() {
+  const button = $('pdf');
+  setBusy(button, true, 'Typesetting...');
+  try {
+    let doc = current.doc;
+    if (current.edited) {
+      doc = docFromText(current.text);
+      if (!doc) { doc = current.doc; toast('Your edited text could not be laid out, so the generated resume was used.'); }
+    }
+    const out = await buildPdf(doc, { title: [current.title, current.company].filter(Boolean).join(' at ') || undefined });
+    const url = URL.createObjectURL(new Blob([out.bytes], { type: 'application/pdf' }));
+    const link = Object.assign(document.createElement('a'), { href: url, download: resumeFilename(current.company, current.title, 'pdf') });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast(`PDF ready: ${out.pages} page${out.pages === 1 ? '' : 's'}.`);
+  } catch (err) {
+    toast(`Could not make the PDF: ${err.message}`);
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+/* ---------- the application system ---------- */
+
+function renderSystemDialog() {
+  const c = current;
+  const sys = c.system && systemById(c.system.id);
+  const options = SYSTEMS.map((s) => `<option value="${s.id}"${c.system?.id === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('');
+  const formUrl = c.applyUrl || c.link;
+  $('app-body').innerHTML = `
+    ${sys ? `<p class="sys-name">${esc(sys.name)}</p><p class="sys-evidence">${esc(c.system.evidence)}</p>
+      <dl class="facts"><dt>Account</dt><dd>${esc(sys.account)}</dd><dt>Resume</dt><dd>${esc(sys.resume)}</dd><dt>Parsing</dt><dd>${esc(sys.parses)}</dd><dt>Work history</dt><dd>${esc(sys.history)}</dd></dl>
+      <h3>Using this resume with it</h3><ul class="tips">${sys.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+      <p class="hint">These are typical behaviors. Each employer sets up its own form, so check what it actually shows.</p>`
+    : `<p class="sys-name">Not identified</p><p class="sys-evidence">Neither the link, the page's Apply link, nor any "powered by" text named the application system. Many career pages load the form with scripts, so it cannot be followed from here.</p>`}
+    ${c.applyUrl ? `<p class="hint">Apply link found on the page: <a href="${esc(c.applyUrl)}" target="_blank" rel="noopener noreferrer">${esc(c.applyUrl)}</a></p>` : ''}
+    ${formUrl ? `<button type="button" id="check-form" class="btn tonal block">Check what the form asks for</button><p id="form-status" class="hint" role="status"></p>` : ''}
+    <div id="form-details"></div>
+    <div class="field"><label for="system-select">${sys ? 'Not right? Choose the system' : 'Choose the system'}</label>
+      <select id="system-select"><option value="">Not sure</option>${options}</select></div>`;
+  if (c.form) renderFormDetails(c.form);
+  const check = $('check-form');
+  if (check) check.addEventListener('click', checkForm);
+  $('system-select').addEventListener('change', (e) => {
+    const picked = systemById(e.target.value);
+    current.system = picked ? { id: picked.id, name: picked.name, evidence: 'You chose it.' } : null;
+    saveEntry({ system: current.system });
+    renderCurrent();
+    renderSystemDialog();
+  });
+}
+
+function renderFormDetails(f) {
+  const rows = [['Account needed', f.account === 'yes' ? 'Yes' : f.account === 'no' ? 'No' : 'Not stated'], f.resume && ['Resume', f.resume], f.system && ['Software', f.system]].filter(Boolean);
+  $('form-details').innerHTML = `<h3>What the form asks for</h3>
+    <dl class="facts">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    ${f.fields.length ? `<h3>Fields</h3><ul class="tips">${f.fields.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    ${f.questions.length ? `<h3>Questions</h3><ul class="tips">${f.questions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    ${f.notes ? `<p class="hint">${esc(f.notes)}</p>` : ''}`;
+}
+
+async function checkForm() {
+  const url = current.applyUrl || current.link;
+  const status = $('form-status');
+  setBusy($('check-form'), true, 'Reading the form...');
+  status.textContent = 'Reading the application page. This can take a minute.';
+  try {
+    const model = $('model').value;
+    let input;
+    try { input = await askClaude(buildFormRequest(url, model), 'report_application_form'); }
+    catch (err) {
+      if (!/web_fetch|tool/i.test(err.message)) throw err;
+      input = await askClaude(buildFormRequest(url, model, { basic: true }), 'report_application_form');
+    }
+    const got = readFormDetails(input);
+    if (!got.ok) { status.textContent = `${got.problem.replace(/\.?$/, '.')} Open the application to see its fields.`; return; }
+    current.form = got;
+    saveEntry({ form: got });
+    status.textContent = '';
+    renderFormDetails(got);
+  } catch (err) {
+    status.textContent = fetchHint(`Could not read the form: ${err.message}`);
+  } finally {
+    setBusy($('check-form'), false);
+  }
 }
 
 function download() {
@@ -696,6 +882,7 @@ async function teach() {
 /* ---------- history ---------- */
 
 function renderHistory() {
+  renderRecent();
   $('history-empty').hidden = history.length > 0;
   $('history').hidden = history.length === 0;
   $('history').innerHTML = history.map((e) => {
@@ -711,6 +898,13 @@ function renderHistory() {
       <button type="button" class="chip-btn" data-delete>Delete</button>
     </div></li>`;
   }).join('');
+}
+
+// The last few resumes, on the Tailor screen, so picking one back up is a single tap.
+function renderRecent() {
+  const recent = history.slice(0, 3);
+  $('recent').hidden = recent.length === 0;
+  $('recent-list').innerHTML = recent.map((e) => `<li data-id="${esc(e.id)}"><span>${esc(historyLabel(e))}</span><span>${esc(shortDate(e.at))}</span></li>`).join('');
 }
 
 function onHistoryClick(event) {
@@ -800,7 +994,15 @@ async function init() {
 
   // tailor form
   $('gen').addEventListener('submit', generate);
-  for (const id of ['posting', 'applink', 'notes', 'shorttitles', 'personal']) $(id).addEventListener('input', () => { saveDraft(); if (id === 'posting' || id === 'applink') updatePostingCount(); });
+  for (const id of ['applink', 'notes', 'shorttitles', 'personal']) {
+    $(id).addEventListener('input', () => {
+      // A posting read from one link is stale once the link changes.
+      if (id === 'applink' && posting.source === 'link' && normalizeUrl($('applink').value) !== posting.link) setPosting('', '');
+      saveDraft();
+      updateLinkUi();
+    });
+  }
+  $('applink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('gen').requestSubmit(); } });
   $('fetch').addEventListener('click', async () => {
     const link = normalizeUrl($('applink').value);
     if (!link) return;
@@ -808,22 +1010,25 @@ async function init() {
     setBusy($('fetch'), true, 'Reading...');
     try { await fillPostingFromLink(link, $('gen-msg')); } finally { setBusy($('fetch'), false); }
   });
-  $('posting').addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') $('gen').requestSubmit(); });
-  $('toggle-notes').addEventListener('click', () => setNotesOpen($('notes-field').hidden));
-  $('clear-posting').addEventListener('click', () => { $('posting').value = ''; updatePostingCount(); saveDraft(); $('posting').focus(); });
+  $('paste-catch').addEventListener('paste', (e) => { e.preventDefault(); acceptPasted(e.clipboardData?.getData('text/plain')); });
+  $('paste-catch').addEventListener('input', (e) => { if (/^insertFrom(Paste|Drop)/.test(e.inputType || '')) acceptPasted($('paste-catch').value); });
   $('paste').addEventListener('click', async () => {
-    try {
-      $('posting').value = await navigator.clipboard.readText();
-      updatePostingCount();
-      saveDraft();
-      toast('Pasted.');
-    } catch { toast('Paste was blocked. Press and hold in the box to paste.'); }
+    try { acceptPasted(await navigator.clipboard.readText()); }
+    catch { $('paste-catch').focus(); toast('Press and hold in the box, then choose Paste.'); }
   });
-
+  $('clear-posting').addEventListener('click', () => setPosting('', ''));
+  $('view-posting').addEventListener('click', () => {
+    $('posting-view').textContent = posting.text;
+    $('posting-source-note').textContent = posting.source === 'link' ? `Read from ${posting.link}` : 'Pasted from your clipboard. This text is used as it is.';
+    showDialog('posting-dialog');
+  });
+  $('toggle-notes').addEventListener('click', () => setNotesOpen($('notes-field').hidden));
   // resume
   $('copy').addEventListener('click', () => writeClipboard(current.text, 'Copied the full resume.'));
   $('download').addEventListener('click', download);
-  $('print').addEventListener('click', () => { if (editing) toggleEdit(); showView('resume'); window.print(); });
+  $('pdf').addEventListener('click', () => { if (editing) toggleEdit(); makePdf(); });
+  $('suggestions').addEventListener('click', onSuggestion);
+  $('stat-system').addEventListener('click', () => { renderSystemDialog(); showDialog('app-dialog'); });
   $('edit').addEventListener('click', toggleEdit);
   $('stat-edited').addEventListener('click', revertEdit);
   $('stat-checks').addEventListener('click', () => showDialog('checks-dialog'));
@@ -851,6 +1056,11 @@ async function init() {
   });
 
   // history
+  $('recent-list').addEventListener('click', (e) => {
+    const li = e.target.closest('li[data-id]');
+    const entry = li && history.find((h) => h.id === li.dataset.id);
+    if (entry) { loadEntry(entry); setQuestions([]); showView('resume'); }
+  });
   $('history').addEventListener('click', onHistoryClick);
   $('history').addEventListener('change', onHistoryChange);
 

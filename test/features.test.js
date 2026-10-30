@@ -27,6 +27,7 @@ test('stats and filenames', () => {
   assert.deepEqual(resumeStats('one two three'), { words: 3, pages: 1 });
   assert.equal(resumeStats('word '.repeat(960)).pages, 2);
   assert.equal(resumeFilename('Acme, Inc.', 'Brand Designer / Lead'), 'Kevin-Broadie-Resume-Acme-Inc-Brand-Designer-Lead.txt');
+  assert.equal(resumeFilename('Coachella Valley Arts Alliance', 'Brand and Presentation Designer', 'pdf'), 'Kevin-Broadie-Resume-Coachella-Valley-Arts-Brand-and-Presentation.pdf');
   assert.equal(resumeFilename('', ''), 'Kevin-Broadie-Resume.txt');
 });
 
@@ -104,7 +105,7 @@ test('the fetch request never forces a tool and treats the page as data', () => 
 
 test('fetched postings are checked before use', () => {
   const text = 'Brand Designer. '.repeat(20);
-  assert.deepEqual(readFetchedPosting({ found: true, title: ' Brand Designer ', company: 'Acme', text, problem: '' }), { ok: true, title: 'Brand Designer', company: 'Acme', text: text.trim() });
+  assert.deepEqual(readFetchedPosting({ found: true, title: ' Brand Designer ', company: 'Acme', text, problem: '' }), { ok: true, title: 'Brand Designer', company: 'Acme', text: text.trim(), applyUrl: '', systemHint: '' });
   assert.equal(readFetchedPosting({ found: true, text: 'too short' }).ok, false);
   assert.equal(readFetchedPosting({ found: false, text: '', problem: 'The page needs a login.' }).problem, 'The page needs a login.');
   assert.match(readFetchedPosting(null).problem, /did not contain a readable job posting/);

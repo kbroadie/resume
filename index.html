@@ -4,18 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#f6f5f1" id="theme-color">
+  <meta name="theme-color" content="#f6f3ec" id="theme-color">
   <meta name="robots" content="noindex">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Resume Advisor">
   <title>Resume Advisor</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/LibertinusSerif-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/LibertinusSerif-Semibold.woff2" as="font" type="font/woff2" crossorigin>
   <script>
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
   <header class="appbar">
@@ -47,33 +49,34 @@
     </section>
 
     <div id="app" hidden>
-      <!-- Tailor -->
+      <!-- Tailor: the link is the default; pasting is the fallback -->
       <section id="v-tailor" class="view" data-view="tailor">
         <form id="gen" class="tailor" novalidate>
-          <div class="field grow">
-            <div class="field-head">
-              <label for="posting">Job posting</label>
-              <span class="field-tools">
-                <span id="posting-count" class="count" aria-live="off"></span>
-                <button id="paste" type="button" class="chip-btn">Paste</button>
-                <button id="clear-posting" type="button" class="chip-btn">Clear</button>
-              </span>
+          <div class="field">
+            <label for="applink">Application link</label>
+            <div class="input-wrap">
+              <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Link to the job posting">
+              <button id="fetch" type="button" class="chip-btn" aria-label="Read the posting from this link" hidden>Read</button>
             </div>
-            <textarea id="posting" placeholder="Paste the full posting: title, duties, requirements."></textarea>
+            <p id="link-hint" class="hint">Claude reads the posting from this link and shows you what it found.</p>
           </div>
 
-          <div class="grid2">
-            <div class="field">
-              <label for="location">Location</label>
-              <select id="location"></select>
+          <div class="posting-source" id="posting-source">
+            <div id="paste-empty" class="paste-row">
+              <textarea id="paste-catch" rows="1" aria-label="Paste the posting text here" placeholder="No link? Paste the posting text here" spellcheck="false"></textarea>
+              <button id="paste" type="button" class="chip-btn">Paste</button>
             </div>
-            <div class="field">
-              <label for="applink">Application link</label>
-              <div class="input-wrap">
-                <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://...">
-                <button id="fetch" type="button" class="chip-btn" aria-label="Read the posting from this link" hidden>Read</button>
-              </div>
+            <div id="paste-done" class="accepted" role="status" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>
+              <span id="posting-summary"></span>
+              <button id="view-posting" type="button" class="chip-btn">View</button>
+              <button id="clear-posting" type="button" class="chip-btn">Clear</button>
             </div>
+          </div>
+
+          <div class="field">
+            <label for="location">Location on this resume</label>
+            <select id="location"></select>
           </div>
 
           <div class="chips" role="group" aria-label="Options for this resume">
@@ -84,6 +87,11 @@
           <div class="field" id="notes-field" hidden>
             <label for="notes">Instructions for this run</label>
             <textarea id="notes" rows="3" placeholder="Example: Emphasize grant writing. Leave out the 2004 teaching job."></textarea>
+          </div>
+
+          <div id="recent" class="recent" hidden>
+            <h3>Recent</h3>
+            <ul id="recent-list" class="cards"></ul>
           </div>
 
           <div class="cta">
@@ -97,7 +105,7 @@
       <section id="v-resume" class="view" data-view="resume" hidden>
         <div id="resume-empty" class="empty">
           <h2>No resume yet</h2>
-          <p>Paste a posting on the Tailor tab and your resume will appear here.</p>
+          <p>Add a link to a posting on the Tailor tab and your resume will appear here.</p>
           <button type="button" class="btn tonal" data-go="tailor">Go to Tailor</button>
         </div>
         <div id="resume-body" hidden>
@@ -107,18 +115,29 @@
           </div>
           <div class="stats">
             <span id="stat-words" class="pill"></span>
-            <button id="stat-edited" type="button" class="pill pill-btn" hidden>Edited. Revert</button>
+            <button id="stat-system" type="button" class="pill pill-btn" hidden></button>
             <button id="stat-checks" type="button" class="pill pill-btn"></button>
+            <button id="stat-edited" type="button" class="pill pill-btn" hidden>Edited. Revert</button>
           </div>
           <div class="toolbar" role="toolbar" aria-label="Resume actions">
             <button id="copy" type="button" class="btn primary">Copy</button>
-            <button id="download" type="button" class="btn">Download</button>
-            <button id="print" type="button" class="btn">PDF</button>
+            <button id="download" type="button" class="btn">Text</button>
+            <button id="pdf" type="button" class="btn">PDF</button>
             <button id="edit" type="button" class="btn">Edit</button>
           </div>
           <article id="resume" class="paper"></article>
           <textarea id="resume-edit" class="paper-edit" aria-label="Edit resume text" hidden spellcheck="true"></textarea>
-          <p class="hint tap-hint">Tap Copy beside a section or job to fill one form field at a time.</p>
+          <p class="hint tap-hint">Tap Copy beside a section or a job to fill one form field at a time.</p>
+
+          <details class="fold" id="sug-fold">
+            <summary><span>Suggested rephrasings</span><span id="sug-count" class="fold-meta"></span></summary>
+            <p class="hint">Each one uses your own library, worded to match the posting. Apply swaps it into the resume.</p>
+            <ul id="suggestions" class="cards"></ul>
+          </details>
+          <details class="fold" id="ats-fold">
+            <summary><span>Applicant tracking check</span><span id="ats-count" class="fold-meta"></span></summary>
+            <ul id="ats-list" class="cards"></ul>
+          </details>
           <details class="fold" id="kw-fold">
             <summary><span>Keyword match</span><span id="kw-summary" class="fold-meta"></span></summary>
             <div id="kw-chips" class="kw"></div>
@@ -227,6 +246,19 @@
     <ul id="checks" class="cards"></ul>
   </dialog>
 
+  <!-- Posting text (read only) -->
+  <dialog id="posting-dialog" class="sheet" aria-labelledby="posting-h">
+    <div class="sheet-head"><h2 id="posting-h">Posting text</h2><button type="button" class="chip-btn" data-close>Done</button></div>
+    <p id="posting-source-note" class="hint"></p>
+    <pre id="posting-view" class="posting-view"></pre>
+  </dialog>
+
+  <!-- Application system -->
+  <dialog id="app-dialog" class="sheet" aria-labelledby="app-h">
+    <div class="sheet-head"><h2 id="app-h">Application system</h2><button type="button" class="chip-btn" data-close>Done</button></div>
+    <div id="app-body"></div>
+  </dialog>
+
   <!-- Library merge review -->
   <dialog id="review-dialog" class="sheet" aria-labelledby="review-h">
     <div class="sheet-head"><h2 id="review-h">Library changes</h2><button type="button" class="chip-btn" data-close>Close</button></div>
@@ -235,6 +267,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=13"></script>
+  <script type="module" src="app.js?v=18"></script>
 </body>
 </html>
