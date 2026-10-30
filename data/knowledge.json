@@ -9,7 +9,8 @@
     "workshop-facilitation": {
       "question": "Have you led workshops or ideation sessions with stakeholders (the posting's co-creation workshops)? For example, did you run the TPPS survey sessions or design meetings at CVAG?",
       "answer": "The tpps survey focus group with directors and managers was a workshop experience I designed",
-      "at": "2026-10-30T06:40:49.763Z"
+      "at": "2026-10-30T06:42:22.040Z",
+      "removed": true
     }
   },
   "choices": {},
@@ -27,7 +28,8 @@
       "topic": "workshop-facilitation",
       "role_id": null,
       "text": "The tpps survey focus group with directors and managers was a workshop experience I designed",
-      "at": "2026-10-30T06:40:49.763Z"
+      "at": "2026-10-30T06:42:22.040Z",
+      "removed": true
     }
   },
   "preferences": {},
