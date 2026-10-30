@@ -567,3 +567,13 @@ dialog.sheet[open]::backdrop { animation: backdrop-in .28s ease; }
 #regen-go { min-height: 3.25rem; margin-top: var(--s2); }
 @media print { .toolbar.actions { display: none !important; } }
 #regen-dialog .opt-label { margin-top: var(--s4); }
+
+.regen-banner { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--s3); background: var(--warn-soft); border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent); }
+.regen-banner > .ico-wrap { color: var(--warn); }
+.regen-banner > .ico-wrap .ico { width: 1.6rem; height: 1.6rem; }
+.regen-banner strong { font-family: var(--display); font-weight: 400; font-size: var(--step-1); line-height: 1.15; color: var(--fg); }
+.regen-banner span { font-family: var(--sans); font-size: .8rem; line-height: 1.35; margin-top: 2px; }
+.regen-banner .btn { min-height: 2.6rem; padding: 0 var(--s3); }
+.regen-answers { font-family: var(--sans); font-weight: 700; font-size: .82rem; color: var(--ok); background: var(--ok-soft); border-radius: var(--r-sm); padding: var(--s2) var(--s3); margin: var(--s2) 0 0; }
+@media (max-width: 26rem) { .regen-banner { grid-template-columns: auto 1fr; } .regen-banner .btn { grid-column: 1 / -1; } }
+#q-done .btn .ico-wrap { margin-right: .4em; }

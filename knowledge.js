@@ -151,3 +151,10 @@ export function markMerged(knowledge, items, now = new Date()) {
   for (const { collection, key } of items) if (k[collection]?.[key]) k[collection][key] = { ...k[collection][key], merged: true, at };
   return k;
 }
+
+// How many answers and notes Kevin saved after `since` (an ISO time), such as when a draft was written.
+export function answersSince(knowledge, since) {
+  const k = normalizeKnowledge(knowledge);
+  const later = ([, v]) => (v.at || '') > (since || '');
+  return live(k.answered).filter(later).length + live(k.notes).filter(later).length;
+}

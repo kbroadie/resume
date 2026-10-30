@@ -1,19 +1,19 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=25';
-import { buildPdf, docFromText } from './pdf.js?v=25';
+} from './lib.js?v=26';
+import { buildPdf, docFromText } from './pdf.js?v=26';
 import {
   SYSTEMS, systemById, identifySystem, atsLint, checkSuggestions, applySuggestion, buildFormRequest, readFormDetails, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=25';
-import { icon, hydrateIcons } from './icons.js?v=25';
+} from './ats.js?v=26';
+import { icon, hydrateIcons } from './icons.js?v=26';
 import {
-  emptyKnowledge, normalizeKnowledge, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=25';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=25';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=25';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=25';
+  emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
+} from './knowledge.js?v=26';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=26';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=26';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=26';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -298,6 +298,7 @@ function renderBadges() {
   const qb = $('badge-q');
   qb.hidden = open === 0;
   qb.textContent = String(open);
+  renderRegenBanner();
 }
 
 /* ---------- the posting: pasted from the clipboard (reading from a link is switched off for now) ---------- */
@@ -455,6 +456,7 @@ function acceptResult(result, issues, opts, link, { replaceId = '', source = pos
     postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
     postingText: (source.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
     system, applyUrl: source.applyUrl || '', form: replaceId ? current.form : null,
+    generatedAt: new Date().toISOString(),
     opts: { locationId: opts.locationId, shortTitles: Boolean(opts.shortTitles), includePersonalLine: opts.includePersonalLine !== false }, notes
   };
   let entry;
@@ -481,30 +483,53 @@ function acceptResult(result, issues, opts, link, { replaceId = '', source = pos
 
 let regenerating = false;
 
+// Answers saved after this draft was written. They are used the next time it is regenerated.
+function newAnswers() {
+  const entry = current && history.find((e) => e.id === current.id);
+  return entry ? answersSince(knowledge, entry.generatedAt || entry.at) : 0;
+}
+
+function renderRegenBanner() {
+  const n = current && current.postingText ? newAnswers() : 0;
+  $('regen-banner').hidden = n === 0;
+  if (n) $('regen-banner-title').textContent = `${n} new answer${n === 1 ? '' : 's'} since this draft`;
+}
+
 function openRegenerate() {
   if (!current || regenerating) return;
   const prior = history.find((e) => e.id === current.id);
   $('regen-notes').value = prior?.notes || '';
   $('regen-short').checked = prior?.opts ? prior.opts.shortTitles : $('shorttitles').checked;
   $('regen-personal').checked = prior?.opts ? prior.opts.includePersonalLine : $('personal').checked;
+  const n = newAnswers();
+  $('regen-answers').hidden = n === 0;
+  $('regen-answers').textContent = n ? `Includes ${n} answer${n === 1 ? '' : 's'} you saved since this draft.` : '';
   $('regen-msg').textContent = current.postingText ? '' : 'This resume was made before the posting was kept. Paste the posting on the Tailor tab to tailor it again.';
   $('regen-go').disabled = !current.postingText;
   showDialog('regen-dialog');
 }
 
+// Regenerates the resume on screen from its saved posting, using everything saved since. With the sheet open it
+// takes the sheet's settings; otherwise (the banner, or the Questions tab) it repeats the draft's own settings.
 async function regenerate() {
+  const sheet = $('regen-dialog').open;
   const msg = $('regen-msg');
+  const say = (text) => { if (sheet) msg.textContent = text; else if (text) toast(text); };
   const prior = history.find((e) => e.id === current.id);
+  if (!current.postingText) { say('This resume was made before the posting was kept. Paste the posting on the Tailor tab to tailor it again.'); return; }
   const locationId = prior?.opts?.locationId || profile.contact.locations.find((l) => l.label === current.location)?.id || $('location').value;
-  if (!locationId) { msg.textContent = 'Choose a location on the Tailor tab first.'; return; }
-  const opts = { includePersonalLine: $('regen-personal').checked, locationId, shortTitles: $('regen-short').checked };
-  const notes = $('regen-notes').value.trim();
+  if (!locationId) { say('Choose a location on the Tailor tab first.'); return; }
+  const opts = sheet
+    ? { includePersonalLine: $('regen-personal').checked, locationId, shortTitles: $('regen-short').checked }
+    : { includePersonalLine: prior?.opts ? prior.opts.includePersonalLine : $('personal').checked, locationId, shortTitles: prior?.opts ? prior.opts.shortTitles : $('shorttitles').checked };
+  const notes = sheet ? $('regen-notes').value.trim() : prior?.notes || '';
   const snapshot = prior ? { ...prior } : null;
   const source = { text: current.postingText, applyUrl: current.applyUrl };
   regenerating = true;
-  setBusy($('regen-go'), true, 'Writing a new draft...');
+  if (sheet) setBusy($('regen-go'), true, 'Writing a new draft...');
   $('regen').setAttribute('aria-busy', 'true');
-  msg.textContent = 'This usually takes 20 to 60 seconds. You can close this and keep reading.';
+  $('regen-banner-go').disabled = true;
+  say(sheet ? 'This usually takes 20 to 60 seconds. You can close this and keep reading.' : 'Writing a new draft with your answers. This takes 20 to 60 seconds.');
   try {
     const input = await askClaude(buildRequest(profile, { posting: source.text, notes, knowledge, ...opts }), 'submit_resume');
     const issues = validateResult(input, profile, { ...opts, knowledge });
@@ -519,12 +544,20 @@ async function regenerate() {
     const n = questions.length;
     toast(`New draft ready.${n ? ` ${n} question${n === 1 ? '' : 's'} for you.` : ''}`, snapshot ? { label: 'Undo', run: () => undoRegenerate(snapshot) } : null);
   } catch (err) {
-    msg.textContent = err.message;
+    say(err.message);
   } finally {
     regenerating = false;
     $('regen').removeAttribute('aria-busy');
-    setBusy($('regen-go'), false);
+    $('regen-banner-go').disabled = false;
+    if (sheet) setBusy($('regen-go'), false);
   }
+}
+
+// From outside the sheet. A hand-edited draft goes through the sheet first, since regenerating replaces the edits.
+function regenerateWithAnswers() {
+  if (!current || regenerating) return;
+  showView('resume');
+  if (current.edited) openRegenerate(); else regenerate();
 }
 
 function undoRegenerate(snapshot) {
@@ -580,6 +613,7 @@ function renderCurrent() {
     ? c.issues.map((i) => `<li>${esc(i)}</li>`).join('')
     : '<li>No problems found. Every bullet cites verified library entries and uses only numbers from them.</li>';
   $('fit').textContent = c.fit;
+  renderRegenBanner();
 
   const sys = $('stat-system');
   sys.hidden = false;
@@ -1057,7 +1091,7 @@ function renderQuestionsDone() {
   const pending = pendingItems(knowledge).length;
   $('q-done').innerHTML = `<h2>All answered</h2><p>${saved} saved. Those questions will not be asked again.</p>
     ${pending ? `<button type="button" class="btn primary block" data-done="merge">Merge ${pending} into my library</button>` : ''}
-    <button type="button" class="btn tonal block" data-done="again">Tailor again with my answers</button>`;
+    ${current?.postingText ? `<button type="button" class="btn tonal block" data-done="regen">${icon('refresh')}Regenerate the resume with my answers</button>` : `<button type="button" class="btn tonal block" data-done="again">Tailor again with my answers</button>`}`;
 }
 
 async function answerQuestion(event) {
@@ -1336,6 +1370,7 @@ async function init() {
   $('toggle-notes').addEventListener('click', () => setNotesOpen($('notes-field').hidden));
   // resume
   $('regen').addEventListener('click', openRegenerate);
+  $('regen-banner-go').addEventListener('click', regenerateWithAnswers);
   $('regen-go').addEventListener('click', regenerate);
   $('regen-ideas').addEventListener('click', (e) => {
     const b = e.target.closest('[data-idea]');
@@ -1384,6 +1419,7 @@ async function init() {
     const b = e.target.closest('button[data-done]');
     if (!b) return;
     if (b.dataset.done === 'merge') startMerge();
+    else if (b.dataset.done === 'regen') regenerateWithAnswers();
     else { showView('tailor'); $('gen').requestSubmit(); }
   });
 

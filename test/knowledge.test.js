@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { emptyKnowledge, applyAnswer, removeEntry, mergeKnowledge, filterQuestions, learnedFacts, knowledgeForPrompt, slug } from '../knowledge.js';
+import { emptyKnowledge, applyAnswer, removeEntry, mergeKnowledge, filterQuestions, learnedFacts, knowledgeForPrompt, answersSince, slug } from '../knowledge.js';
 import { splitProfile, buildRequest, validateResult, buildDoc, groupLookup } from '../lib.js';
 import { encodeContent, decodeContent, syncKnowledge } from '../sync.js';
 
@@ -126,4 +126,15 @@ test('bad token gives a clear message', async () => {
   const fetchImpl = async (url, opts = {}) => (opts.method ? { status: 403, ok: false } : { status: 200, ok: true, json: async () => ({ content: encodeContent(emptyKnowledge()), sha: 's' }) });
   const local = applyAnswer(emptyKnowledge(), { topic: 'z', text: 'q' }, { action: 'dismiss' }, now);
   await assert.rejects(syncKnowledge(local, 'bad', fetchImpl), /did not accept the token/);
+});
+
+test('answersSince counts answers and notes saved after a draft, and skips removed ones', () => {
+  const since = '2026-01-01T00:00:00.000Z';
+  let k = applyAnswer(emptyKnowledge(), { topic: 'a', text: 'A?' }, { action: 'fact', text: 'One.' }, new Date('2025-12-31T00:00:00Z'));
+  k = applyAnswer(k, { topic: 'b', text: 'B?' }, { action: 'preference', text: 'Two.' }, new Date('2026-01-02T00:00:00Z'));
+  k = applyAnswer(k, { text: 'C' }, { action: 'note', text: 'Three.' }, new Date('2026-01-03T00:00:00Z'));
+  assert.equal(answersSince(k, since), 2);
+  const pref = Object.keys(k.preferences)[0];
+  assert.equal(answersSince(removeEntry(k, 'preferences', pref, new Date('2026-01-04T00:00:00Z')), since), 1);
+  assert.equal(answersSince(emptyKnowledge(), since), 0);
 });
