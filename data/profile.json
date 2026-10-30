@@ -654,6 +654,28 @@
             "photography"
           ],
           "status": "verified"
+        },
+        {
+          "id": "cvag.tested-the-survey",
+          "status": "verified",
+          "tags": [
+            "user-testing",
+            "prototyping",
+            "survey-app",
+            "observation"
+          ],
+          "text": "Tested the survey app in a conference room on a touchscreen TV, with the Executive Director presenting to the transportation director and managers. Gave the Executive Director a minimal overview of the navigation, how the math works, and the results page, then observed efficiency of movement, signs of uncertainty or frustration, and the room's engagement."
+        },
+        {
+          "id": "cvag.refined-the-survey",
+          "status": "verified",
+          "tags": [
+            "iteration",
+            "user-testing",
+            "survey-app",
+            "feedback"
+          ],
+          "text": "Refined the survey app after testing by sharing observations and refinement ideas with the Executive Director, gathering his feedback, making the changes, and stress-testing in the real presentation setting, refining on the spot."
         }
       ]
     },
