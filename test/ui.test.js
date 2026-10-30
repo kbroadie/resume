@@ -35,18 +35,18 @@ test('every module the app imports carries the same cache-busting version', () =
   assert.equal(versions.size, 1, `found versions ${[...versions]}`);
 });
 
-test('mobile first: the page is fixed to the screen with a bottom tab bar and a theme toggle', () => {
+test('desktop workspace: a rail, a stage, an inspector, themes, and the two Google sans-serif faces', () => {
   const css = read('styles.css');
   assert.match(css, /height: 100dvh/);
-  assert.match(html, /id="tabbar"/);
-  assert.match(html, /id="theme"/);
+  for (const id of ['tabbar', 'main', 'inspector', 'history', 'theme']) assert.match(html, new RegExp(`id="${id}"`));
   assert.match(css, /:root\[data-theme="dark"\]/);
   assert.match(css, /prefers-color-scheme: dark/);
   assert.match(css, /\[data-theme="light"\]/);
+  for (const font of ['Hanken Grotesk', 'Schibsted Grotesk']) assert.ok(css.includes(font), font);
 });
 
-test('the application link field and per-question flow exist', () => {
+test('the hidden link field and the per-question flow exist', () => {
   assert.match(html, /id="applink"/);
   assert.match(html, /id="q-card"/);
-  assert.ok(!html.includes('id="notes"') || html.includes('Instructions for this run'));
+  assert.match(html, /id="notes"/);
 });

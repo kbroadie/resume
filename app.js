@@ -1,20 +1,20 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=28';
-import { buildPdf, docFromText } from './pdf.js?v=28';
+} from './lib.js?v=29';
+import { buildPdf, docFromText } from './pdf.js?v=29';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=28';
-import { icon, hydrateIcons } from './icons.js?v=28';
+} from './ats.js?v=29';
+import { icon, hydrateIcons } from './icons.js?v=29';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=28';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=28';
-import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=28';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=28';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=28';
+} from './knowledge.js?v=29';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=29';
+import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=29';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=29';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=29';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -62,7 +62,7 @@ function persistHistory() {
     const trial = history.map((e, k) => (k >= strip && e.postingText ? { ...e, postingText: '' } : e));
     if (store.set(HISTORY_STORE, JSON.stringify(trial))) { if (strip < history.length) history = trial; return; }
   }
-  toast('This device is out of room for history. Older resumes may not be kept.');
+  toast('Storage full');
 }
 
 let toastTimer = 0;
@@ -108,31 +108,49 @@ function cycleTheme() {
   const order = ['auto', 'light', 'dark'];
   const next = order[(order.indexOf(themeMode()) + 1) % order.length];
   applyTheme(next);
-  toast(`Theme: ${THEME_NAMES[next]}`);
+  toast(THEME_NAMES[next]);
 }
 
 /* ---------- navigation ---------- */
 
 let lastView = 'tailor';
+let inspectorTab = 'fit';
+const TABS = ['fit', 'terms', 'edits', 'checks', 'questions'];
 
-function showView(name) {
+// One stage (tailor, resume, compare, library) and, beside a resume, the inspector with its tabs.
+// Older names still work: "improve" opens the inspector on Fit, "questions" on Ask, "history" is the rail.
+function showView(name, tab) {
+  if (name === 'history') name = 'tailor';
+  if (name === 'improve') { name = 'resume'; tab = tab || 'fit'; }
+  if (name === 'questions') { name = 'resume'; tab = tab || 'questions'; }
+  if (!current && (name === 'resume' || name === 'compare')) name = 'tailor';
   if (name !== 'compare') lastView = name;
   for (const v of document.querySelectorAll('.view')) v.hidden = v.dataset.view !== name;
-  for (const t of document.querySelectorAll('.tabbar button')) {
-    if (t.dataset.view === name) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+  for (const t of document.querySelectorAll('#tabbar [data-view]')) {
+    const on = t.dataset.view === name;
+    if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
   }
+  for (const li of document.querySelectorAll('#history [data-id]')) {
+    if (name === 'resume' && current && li.dataset.id === current.id) li.setAttribute('aria-current', 'true'); else li.removeAttribute('aria-current');
+  }
+  document.body.dataset.view = name;
+  $('inspector').hidden = !current || !['resume', 'compare'].includes(name);
+  if (tab && TABS.includes(tab)) inspectorTab = tab;
+  showTab(inspectorTab);
   $('main').scrollTop = 0;
   $('toast').hidden = true;
   updateTitle();
 }
 
+function showTab(name) {
+  inspectorTab = TABS.includes(name) ? name : 'fit';
+  for (const t of document.querySelectorAll('#inspector [data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === inspectorTab));
+  for (const p of document.querySelectorAll('#inspector [data-panel]')) p.hidden = p.dataset.panel !== inspectorTab;
+}
+
 function show(signedIn) {
   $('login').hidden = signedIn;
   $('app').hidden = !signedIn;
-  $('tabbar').hidden = !signedIn;
-  $('open-settings').hidden = !signedIn;
-  $('open-history').hidden = !signedIn;
-  $('open-palette').hidden = !signedIn;
   if (signedIn) showView(document.querySelector('.view:not([hidden])')?.dataset.view || 'tailor');
 }
 
@@ -232,7 +250,7 @@ function refreshProfileViews() {
     profile.contact.locations.map((l) => `<option value="${l.id}">${esc(l.label)}</option>`).join('');
   $('location').value = profile.contact.locations.some((l) => l.id === chosen) ? chosen : '';
   const open = profile.open_questions || [];
-  $('open-questions').innerHTML = open.map((q) => `<li>${esc(q)}</li>`).join('') || '<li>Nothing waiting.</li>';
+  $('open-questions').innerHTML = open.map((q) => `<li>${esc(q)}</li>`).join('') || '<li class="none-yet">None</li>';
   $('oq-count').textContent = open.length ? String(open.length) : '';
 }
 
@@ -283,10 +301,10 @@ function renderSaved() {
   const rows = [];
   for (const collection of ['facts', 'preferences', 'choices', 'notes', 'dismissed']) {
     for (const [key, e] of liveEntries(knowledge, collection)) {
-      rows.push(`<li>${esc(describeEntry(collection, key, e))} <button type="button" class="link" data-collection="${collection}" data-key="${esc(key)}">Remove</button></li>`);
+      rows.push(`<li>${esc(describeEntry(collection, key, e))} <button type="button" class="link-btn" data-collection="${collection}" data-key="${esc(key)}">Remove</button></li>`);
     }
   }
-  $('saved').innerHTML = rows.join('') || '<li>Nothing saved yet. Answer a question and it will appear here.</li>';
+  $('saved').innerHTML = rows.join('') || '<li class="none-yet">None</li>';
   $('saved-count').textContent = rows.length ? String(rows.length) : '';
   renderBadges();
 }
@@ -294,7 +312,7 @@ function renderSaved() {
 function renderBadges() {
   const pending = pendingItems(knowledge).length;
   $('merge-card').hidden = pending === 0;
-  $('merge-title').textContent = `${pending} saved answer${pending === 1 ? '' : 's'} ready to merge`;
+  $('merge-title').textContent = `${pending} to merge`;
   const lib = $('badge-l');
   lib.hidden = pending === 0;
   lib.textContent = String(pending);
@@ -341,7 +359,7 @@ function renderPosting() {
   $('paste-done').hidden = !has;
   if (has) {
     const n = wordCount(posting.text);
-    $('posting-summary').textContent = `${n.toLocaleString('en-US')} words, ${posting.text.length.toLocaleString('en-US')} characters${posting.source === 'link' ? ', read from the link' : ''}`;
+    $('posting-summary').textContent = `${n.toLocaleString('en-US')} words`;
     $('posting-preview').textContent = posting.text.split('\n').map((l) => l.trim()).find((l) => l.length > 3)?.slice(0, 140) || '';
   }
   updateLinkUi();
@@ -366,9 +384,9 @@ function setPosting(text, source, extra = {}) {
 function acceptPasted(raw) {
   const text = String(raw || '').trim();
   $('paste-catch').value = '';
-  if (text.length < 40) { toast('That did not look like a posting. Copy the whole posting and try again.'); return false; }
+  if (text.length < 40) { toast('Too short'); return false; }
   setPosting(text, 'pasted');
-  toast(`Posting accepted. ${wordCount(text)} words.`);
+  toast('Added');
   return true;
 }
 
@@ -400,12 +418,12 @@ const fetchHint = (message) => (/web.?fetch|not enabled|permission/i.test(messag
 
 // Reads the posting from the link and stores it. Returns true when the posting text is now held.
 async function fillPostingFromLink(link, msg) {
-  msg.textContent = 'Reading the posting from your link...';
+  msg.textContent = 'Reading…';
   try {
     const got = await readPostingFromLink(link);
     if (!got.ok) { msg.textContent = fetchHint(`Could not read that page: ${got.problem}`); $('paste-catch').focus(); return false; }
     setPosting(got.text, 'link', { link, title: got.title, company: got.company });
-    toast(`Read the posting${got.title ? `: ${got.title}` : ''}. Tap View to check it.`);
+    toast('Read');
     return true;
   } catch (err) {
     msg.textContent = fetchHint(`Could not read that page: ${err.message}`);
@@ -422,10 +440,10 @@ async function generate(event) {
   msg.textContent = '';
   const rawLink = LINK_READING ? $('applink').value.trim() : '';
   const link = normalizeUrl(rawLink);
-  if (rawLink && !link) { msg.textContent = 'That application link does not look right. Use a full web address.'; $('applink').focus(); return; }
+  if (rawLink && !link) { msg.textContent = 'Not a link'; $('applink').focus(); return; }
   if (link) $('applink').value = link;
-  if (!posting.text && !link) { msg.textContent = 'Paste the job posting first.'; $('paste').focus(); return; }
-  if (!$('location').value) { msg.textContent = 'Choose a location for this resume.'; $('location').focus(); return; }
+  if (!posting.text && !link) { msg.textContent = 'Paste a posting'; $('paste').focus(); return; }
+  if (!$('location').value) { msg.textContent = 'Choose a location'; $('location').focus(); return; }
 
   const opts = { includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
   store.set(LOCATION_STORE, opts.locationId);
@@ -435,7 +453,7 @@ async function generate(event) {
     if (!posting.text && !(await fillPostingFromLink(link, msg))) return;
     saveDraft();
     const req = buildRequest(profile, { posting: posting.text, notes: $('notes').value, knowledge, ...opts });
-    msg.textContent = 'Tailoring. This usually takes 20 to 60 seconds.';
+    msg.textContent = 'Tailoring… about 40 seconds';
     const input = await askClaude(req, 'submit_resume');
     const issues = validateResult(input, profile, { ...opts, knowledge });
     acceptResult(input, issues, opts, link, { notes: $('notes').value });
@@ -477,7 +495,7 @@ function acceptResult(result, issues, opts, link, { replaceId = '', source = pos
   renderHistory();
   showView('resume');
   const n = questions.length;
-  if (!replaceId) toast(n ? `Resume ready. ${n} question${n === 1 ? '' : 's'} for you.` : 'Resume ready.', n ? { label: 'Answer', run: () => showView('questions') } : null);
+  if (!replaceId) toast(n ? `Ready · ${n} question${n === 1 ? '' : 's'}` : 'Ready', n ? { label: 'Answer', run: () => showView('resume', 'questions') } : null);
   if (!current.fit || current.fit.hash !== fingerprint(profile)) assessFit();
   if (store.get(AUTOSUGGEST_STORE) !== '0' && current.keywords.missing.length) autoSuggest();
 }
@@ -486,7 +504,7 @@ function acceptResult(result, issues, opts, link, { replaceId = '', source = pos
 
 let assessingId = '';
 
-const scoreBar = (label, value, kind) => `<span class="fit-row"><b>${label}</b><span class="meter ${kind}" role="img" aria-label="${label}: ${value} out of 100"><i style="width:${value}%"></i></span><em>${value}</em></span>`;
+const SCORE_HELP = 'Library: how much of the posting your library supports. Draft: how much of that this resume shows. Required counts 3 times, related counts half. Rounded down.';
 
 function currentScores() {
   const c = current;
@@ -503,42 +521,34 @@ function renderFit() {
   const scores = currentScores();
   const stale = Boolean(c.fit && c.fit.hash !== fingerprint(profile));
 
-  // The strip on the Resume tab.
+  // Compact scores beside the resume.
   strip.hidden = !(busy || scores || c.fitError || c.postingText);
-  if (busy && !scores) strip.innerHTML = `<div class="fit-head"><span class="fit-title">${icon('gauge')}Fit with the posting</span></div><p class="fit-wait" role="status">Scoring the posting against your library...</p>`;
-  else if (!scores) strip.innerHTML = `<div class="fit-head"><span class="fit-title">${icon('gauge')}Fit with the posting</span></div><p class="fit-wait">${esc(c.fitError || 'Not scored yet.')}</p><button type="button" class="chip-btn" data-fit="again">${c.fitError ? 'Try again' : 'Score it'}</button>`;
-  else strip.innerHTML = `<button type="button" class="fit-open" data-go="improve" aria-label="Fit with the posting. Open the details.">
-      <span class="fit-head"><span class="fit-title">${icon('gauge')}Fit with the posting</span><span class="fit-more">Details${icon('chevron')}</span></span>
-      <span class="fit-rows">${scoreBar('Library', scores.library, 'lib')}${scoreBar('This draft', scores.draft, 'draft')}</span></button>`;
-  hydrateIcons(strip);
+  if (scores) strip.innerHTML = `<button type="button" class="fit-chip" data-tab="fit" title="${esc(SCORE_HELP)}"><span>Library</span><b>${scores.library}</b><span>Draft</span><b>${scores.draft}</b></button>`;
+  else strip.innerHTML = `<button type="button" class="fit-chip" data-tab="fit"><span>Fit</span><b>${busy ? '…' : '—'}</b></button>`;
 
-  // The detail on the Improve tab.
+  // The Fit tab.
+  const again = (label) => `<button type="button" class="btn block" data-fit="again"><i data-icon="refresh"></i><span>${label}</span></button>`;
   if (!scores) {
-    detail.innerHTML = `<div class="sec-head"><i data-icon="gauge"></i><h3 id="fit-h">Posting fit</h3></div><p class="hint" role="status">${busy ? 'Scoring the posting against your library...' : esc(c.fitError || 'Not scored yet.')}</p>${busy ? '' : '<button type="button" class="btn tonal block" data-fit="again"><i data-icon="refresh"></i><span>Score the fit</span></button>'}`;
+    detail.innerHTML = busy ? '<p class="none-yet" role="status">Scoring…</p>' : `${c.fitError ? `<p class="msg">${esc(c.fitError)}</p>` : ''}${again('Score')}`;
     hydrateIcons(detail);
     return;
   }
   const gap = scores.library - scores.draft;
-  const by = (state) => scores.rows.filter((r) => r.state === state);
-  const row = (r, i) => `<li class="req ${r.state}"><div class="req-top"><span class="req-text">${esc(r.text)}</span><span class="tag ${r.weight === 'must' ? '' : 'role'}">${r.weight === 'must' ? 'Required' : 'Preferred'}</span></div>
-      <p class="req-note">${esc(r.note)}${r.support === 'partial' ? ' <em>Related, not exact.</em>' : ''}</p>
-      ${r.state === 'unused' ? `<button type="button" class="chip-btn" data-ask="${i}">${icon('send')}Ask for it</button>` : ''}</li>`;
-  const group = (state, title, hint, open) => {
+  const row = (r, i) => `<li class="req ${r.state}"><div class="req-top"><span class="req-text">${esc(r.text)}</span><span class="tag ${r.weight === 'must' ? '' : 'role'}" title="${r.weight === 'must' ? 'Required' : 'Preferred'}">${r.weight === 'must' ? 'Req' : 'Pref'}</span></div>
+      <p class="req-note">${esc(r.note)}${r.support === 'partial' ? ' <em>Related.</em>' : ''}</p>
+      ${r.state === 'unused' ? `<button type="button" class="btn small" data-ask="${i}">${icon('send')}<span>Ask</span></button>` : ''}</li>`;
+  const group = (state, title, open) => {
     const rows = scores.rows.map((r, i) => [r, i]).filter(([r]) => r.state === state);
-    return rows.length ? `<details class="fold req-group"${open ? ' open' : ''}><summary><span>${title}</span><span class="fold-meta">${rows.length}</span></summary><p class="hint">${hint}</p><ul class="cards">${rows.map(([r, i]) => row(r, i)).join('')}</ul></details>` : '';
+    return rows.length ? `<details class="fold req-group"${open ? ' open' : ''}><summary><span>${title}</span><span class="count">${rows.length}</span></summary><ul class="cards">${rows.map(([r, i]) => row(r, i)).join('')}</ul></details>` : '';
   };
-  detail.innerHTML = `<div class="sec-head"><i data-icon="gauge"></i><h3 id="fit-h">Posting fit</h3><span class="sec-meta">${scores.rows.length} requirements</span></div>
-    <div class="scores">
-      <div class="score lib"><span class="label">Library</span><strong>${scores.library}</strong><span class="meter lib" role="img" aria-label="Library fit: ${scores.library} out of 100"><i style="width:${scores.library}%"></i></span><small>What your library can honestly say about this posting.</small></div>
-      <div class="score draft"><span class="label">This draft</span><strong>${scores.draft}</strong><span class="meter draft" role="img" aria-label="Draft fit: ${scores.draft} out of 100"><i style="width:${scores.draft}%"></i></span><small>How much of that this resume shows.</small></div>
+  detail.innerHTML = `<div class="scores" title="${esc(SCORE_HELP)}">
+      <div class="score lib"><span class="label">Library</span><strong>${scores.library}</strong><span class="meter lib" role="img" aria-label="Library ${scores.library} of 100"><i style="width:${scores.library}%"></i></span></div>
+      <div class="score draft"><span class="label">Draft</span><strong>${scores.draft}</strong><span class="meter draft" role="img" aria-label="Draft ${scores.draft} of 100"><i style="width:${scores.draft}%"></i></span></div>
     </div>
-    <p class="fit-gap">${gap > 0 ? `Your library supports ${gap} more point${gap === 1 ? '' : 's'} than this draft shows. Ask for the items below to close the gap.` : 'This draft shows everything your library can support for this posting.'}</p>
-    ${group('unused', 'In your library, not in this draft', 'Your library backs these, but the resume does not say them yet.', true)}
-    ${group('shown', 'Shown in this draft', 'The draft already says these.', false)}
-    ${group('missing', 'Not in your library', 'Nothing in your library shows these. If one is true, teach it on the Library tab, then re-check.', true)}
-    <p class="hint">Required items count three times as much as preferred ones. A related match earns half credit. Scores are estimates, rounded down.</p>
-    ${stale ? '<p class="fit-stale" role="status">Your library changed since this was scored.</p>' : ''}
-    <button type="button" class="btn block" data-fit="again"><i data-icon="refresh"></i><span>Re-check against my library</span></button>`;
+    ${gap > 0 ? `<p class="fit-gap">${gap} points unused</p>` : ''}
+    ${group('unused', 'Unused', true)}${group('shown', 'Shown', false)}${group('missing', 'Missing', true)}
+    ${stale ? '<p class="fit-stale" role="status">Library changed</p>' : ''}
+    ${again('Rescore')}`;
   hydrateIcons(detail);
 }
 
@@ -606,7 +616,7 @@ function newAnswers() {
 function renderRegenBanner() {
   const n = current && current.postingText ? newAnswers() : 0;
   $('regen-banner').hidden = n === 0;
-  if (n) $('regen-banner-title').textContent = `${n} new answer${n === 1 ? '' : 's'} since this draft`;
+  if (n) $('regen-banner-title').textContent = `${n} new answer${n === 1 ? '' : 's'}`;
 }
 
 function openRegenerate() {
@@ -636,9 +646,9 @@ async function regenerate({ comment = '' } = {}) {
     else if (text) toast(text);
   };
   const prior = history.find((e) => e.id === current.id);
-  if (!current.postingText) { say('This resume was made before the posting was kept. Paste the posting on the Tailor tab to tailor it again.'); return false; }
+  if (!current.postingText) { say('No saved posting'); return false; }
   const locationId = prior?.opts?.locationId || profile.contact.locations.find((l) => l.label === current.location)?.id || $('location').value;
-  if (!locationId) { say('Choose a location on the Tailor tab first.'); return false; }
+  if (!locationId) { say('Choose a location'); return false; }
   const opts = sheet
     ? { includePersonalLine: $('regen-personal').checked, locationId, shortTitles: $('regen-short').checked }
     : { includePersonalLine: prior?.opts ? prior.opts.includePersonalLine : $('personal').checked, locationId, shortTitles: prior?.opts ? prior.opts.shortTitles : $('shorttitles').checked };
@@ -666,7 +676,7 @@ async function regenerate({ comment = '' } = {}) {
     paper.classList.add('fresh');
     navigator.vibrate?.(12);
     const n = questions.length;
-    toast(`${comment ? 'Changes made.' : 'New draft ready.'}${n ? ` ${n} question${n === 1 ? '' : 's'} for you.` : ''}`, snapshot ? { label: 'Undo', run: () => undoRegenerate(snapshot) } : null);
+    toast(`${comment ? 'Changed' : 'Redone'}${n ? ` · ${n} question${n === 1 ? '' : 's'}` : ''}`, snapshot ? { label: 'Undo', run: () => undoRegenerate(snapshot) } : null);
     return true;
   } catch (err) {
     say(err.message);
@@ -693,7 +703,7 @@ function undoRegenerate(snapshot) {
   persistHistory();
   loadEntry(snapshot);
   renderHistory();
-  toast('Restored the previous draft.');
+  toast('Undone');
 }
 
 function loadEntry(entry) {
@@ -716,10 +726,9 @@ function renderCurrent() {
   const c = current;
   const terms = kwList();
   if (terms.length) c.keywords = keywordCoverage(terms, c.text);
-  $('resume-empty').hidden = true;
-  $('resume-body').hidden = false;
-  $('res-title').textContent = c.title || 'Tailored resume';
-  $('res-sub').textContent = [c.company, c.location].filter(Boolean).join(' · ');
+  $('res-status').value = history.find((e) => e.id === c.id)?.status || STATUSES[0];
+  $('res-title').textContent = c.title || 'Resume';
+  $('res-sub').textContent = [c.company, c.location].filter(Boolean).join(' \u00b7 ');
   const linkEl = $('res-link');
   linkEl.hidden = !c.link;
   if (c.link) linkEl.href = c.link;
@@ -730,13 +739,14 @@ function renderCurrent() {
   $('resume-edit').hidden = !editing;
   paper.hidden = editing;
   $('edit').querySelector('span').textContent = editing ? 'Done' : 'Edit';
+  renderRail();
 
   const stats = resumeStats(c.text);
-  $('stat-words').textContent = `${stats.words} words, about ${stats.pages} page${stats.pages === 1 ? '' : 's'}`;
+  $('stat-words').textContent = `${stats.words} words · ${stats.pages} pg`;
   $('stat-edited').hidden = !c.edited;
   const checks = $('stat-checks');
   checks.innerHTML = `${icon(c.issues.length ? 'alert' : 'check')}${c.issues.length ? `${c.issues.length} check${c.issues.length === 1 ? '' : 's'} to review` : 'Checks passed'}`;
-  checks.className = `pill pill-btn ${c.issues.length ? 'warn' : 'ok'}`;
+  checks.className = `stat stat-btn ${c.issues.length ? 'warn' : 'ok'}`;
   $('checks').innerHTML = c.issues.length
     ? c.issues.map((i) => `<li>${esc(i)}</li>`).join('')
     : '<li>No problems found. Every bullet cites verified library entries and uses only numbers from them.</li>';
@@ -753,19 +763,16 @@ const openSuggestions = () => (current?.suggestions || []).filter((s) => s.kind 
 
 function renderImprove() {
   const c = current;
-  $('improve-empty').hidden = true;
-  $('improve-body').hidden = false;
-  $('improve-sub').textContent = [c.title, c.company].filter(Boolean).join(' at ') || 'This resume';
 
   // Coverage: every posting term, marked by whether the resume says it.
   const terms = kwList();
   const total = terms.length;
   const covered = c.keywords.covered.length;
-  $('cov-text').textContent = total ? `${covered} of ${total}` : '';
+  $('cov-text').textContent = total ? `${covered}/${total}` : '';
   $('cov-fill').style.width = total ? `${Math.round((covered / total) * 100)}%` : '0%';
   const resumeCounts = markTerms(c.text, terms).counts;
   $('kw-chips').innerHTML = terms.map((t, i) => `<button type="button" class="${resumeCounts[i] ? 'hit' : 'miss'}" data-k="${i}">${esc(t)}<small>${resumeCounts[i]}</small></button>`).join('')
-    || '<span class="hint">No posting terms were recorded for this resume.</span>';
+    || '<span class="hint">None</span>';
 
   renderSuggestions();
   renderSummary();
@@ -773,8 +780,6 @@ function renderImprove() {
   const open = openSuggestions().length;
   $('badge-i').hidden = open === 0;
   $('badge-i').textContent = String(open);
-  $('improve-count').hidden = open === 0;
-  $('improve-count').textContent = String(open);
 }
 
 function renderSuggestions() {
@@ -792,11 +797,11 @@ function renderSuggestions() {
     return `<li class="sug" data-i="${i}"><span class="tag">${esc(s.keyword)}</span>
       <p class="was">${esc(typo(s.replaces))}</p><p class="now">${esc(typo(s.text))}</p>
       ${s.why ? `<p class="why">${esc(typo(s.why))}</p>` : ''}
-      ${s.applied ? `<p class="applied">${icon('check')} Applied</p>` : stale ? '<p class="why">This line has changed, so the rewrite no longer fits.</p>'
-        : `<div class="sug-actions"><button type="button" class="btn primary" data-sug="apply">${icon('check')}Apply</button><button type="button" class="btn" data-sug="dismiss">Dismiss</button></div>`}</li>`;
-  }).join('') || `<li>${missing ? 'No rewrites yet. Tap Find more.' : 'Every posting term is already in the resume.'}</li>`;
+      ${s.applied ? `<p class="applied">${icon('check')} Applied</p>` : stale ? '<p class="why">Line changed</p>'
+        : `<div class="sug-actions"><button type="button" class="btn small primary" data-sug="apply">${icon('check')}<span>Apply</span></button><button type="button" class="btn small" data-sug="dismiss">Skip</button></div>`}</li>`;
+  }).join('') || `<li class="none-yet">${missing ? 'None yet' : 'All terms present'}</li>`;
   $('sug-unsupported').innerHTML = (c.unsupported || []).length
-    ? `<h3>Not in your library</h3><ul class="tips">${c.unsupported.map((u) => `<li><strong>${esc(u.keyword)}.</strong> ${esc(u.why)}</li>`).join('')}</ul><p>If one is true for you, add it under Teach on the Library tab and tailor again.</p>`
+    ? `<h3>Not in library</h3><ul class="rows">${c.unsupported.map((u) => `<li><strong>${esc(u.keyword)}</strong> ${esc(u.why)}</li>`).join('')}</ul>`
     : '';
 }
 
@@ -810,7 +815,7 @@ function renderAts() {
   const c = current;
   const checks = atsLint({ text: c.text, doc: c.doc, keywords: kwList(), postingTitle: c.title });
   const review = checks.filter((x) => !x.ok).length;
-  $('ats-count').textContent = review ? `${review} to review` : 'All clear';
+  $('ats-count').textContent = review ? `${review} to review` : 'Clear';
   $('ats-list').innerHTML = checks.map((x) => `<li class="ats-row ${x.ok ? 'ok' : 'warn'}"><i>${x.ok ? '✓' : '!'}</i><div>${esc(x.label)}<small>${esc(x.detail)}</small></div></li>`).join('');
 }
 
@@ -841,19 +846,19 @@ function onSuggestion(event) {
   if (!btn || !li) return;
   const s = current.suggestions[Number(li.dataset.i)];
   if (btn.dataset.sug === 'dismiss') { s.dismissed = true; saveEntry({ suggestions: current.suggestions }); renderImprove(); return; }
-  if (current.edited) { toast('Revert your edits first, then apply rewrites.'); return; }
+  if (current.edited) { toast('Revert edits first'); return; }
   if (!applyOne(s)) { renderSuggestions(); return; }
   finishChange();
-  toast('Applied.');
+  toast('Applied');
 }
 
 function applyAll() {
-  if (current.edited) { toast('Revert your edits first, then apply rewrites.'); return; }
+  if (current.edited) { toast('Revert edits first'); return; }
   let done = 0;
   for (const s of openSuggestions()) if (applyOne(s)) done += 1;
-  if (!done) { toast('Nothing could be applied. The lines have changed.'); return; }
+  if (!done) { toast('Lines changed'); return; }
   finishChange();
-  toast(`Applied ${done} rewrite${done === 1 ? '' : 's'}.`);
+  toast(`Applied ${done}`);
 }
 
 // Asks for natural rewordings that cover the keywords the resume still lacks, then keeps only the safe ones.
@@ -863,7 +868,7 @@ async function suggestMore(only = null, { quiet = false } = {}) {
   const status = $('sug-status');
   const button = $('sug-more');
   if (!quiet) setBusy(button, true, 'Finding wording...');
-  status.textContent = `Finding natural wording for ${missing.length} keyword${missing.length === 1 ? '' : 's'}...`;
+  status.textContent = 'Finding…';
   const entryId = current.id;
   try {
     const opts = { includePersonalLine: $('personal').checked, knowledge };
@@ -880,7 +885,7 @@ async function suggestMore(only = null, { quiet = false } = {}) {
     status.textContent = fresh.length
       ? `${fresh.length} new rewrite${fresh.length === 1 ? '' : 's'}.`
       : 'Nothing safe to add. Every other missing term needs something your library does not yet say.';
-    if (quiet && fresh.length) toast(`${fresh.length} keyword rewrite${fresh.length === 1 ? '' : 's'} ready.`, { label: 'Review', run: () => showView('improve') });
+    if (quiet && fresh.length) toast(`${fresh.length} rewrite${fresh.length === 1 ? '' : 's'}`, { label: 'Review', run: () => showView('resume', 'edits') });
   } catch (err) {
     status.textContent = err.message;
   } finally {
@@ -897,17 +902,17 @@ function autoSuggest() {
 
 function renderSummary() {
   const c = current;
-  $('sum-current').textContent = typo(c.doc.summary || 'This resume has no summary.');
+  $('sum-current').textContent = typo(c.doc.summary || 'None');
   $('sum-restore').hidden = !c.summaryOriginal || c.summaryOriginal === c.doc.summary;
   $('sum-options').innerHTML = (c.summaryOptions || []).map((o, i) => `<li class="sug" data-i="${i}"><span class="tag">${esc(o.label)}</span>
     <p class="now">${esc(typo(o.text))}</p>
-    <div class="sug-actions"><button type="button" class="btn primary" data-sum="use">${icon('check')}Use this</button></div></li>`).join('');
+    <div class="sug-actions"><button type="button" class="btn small primary" data-sum="use">${icon('check')}<span>Use</span></button></div></li>`).join('');
 }
 
 async function writeSummaries() {
   const button = $('sum-gen');
   const status = $('sum-status');
-  setBusy(button, true, 'Writing options...');
+  setBusy(button, true, 'Writing…');
   status.textContent = '';
   try {
     const opts = { includePersonalLine: $('personal').checked, knowledge };
@@ -916,7 +921,7 @@ async function writeSummaries() {
     const known = sourceTextLookup(profile, opts);
     current.summaryOptions = checkSummaries(input.options, { knownText: known, years: yearsSince(profile.meta.career_start), startYear: Number(profile.meta.career_start.slice(0, 4)) });
     saveEntry({ summaryOptions: current.summaryOptions });
-    status.textContent = current.summaryOptions.length ? '' : 'No safe options this time. Try again.';
+    status.textContent = current.summaryOptions.length ? '' : 'None safe. Retry';
     renderSummary();
   } catch (err) {
     status.textContent = err.message;
@@ -926,20 +931,20 @@ async function writeSummaries() {
 }
 
 function useSummary(i) {
-  if (current.edited) { toast('Revert your edits first, then change the summary.'); return; }
+  if (current.edited) { toast('Revert edits first'); return; }
   const option = current.summaryOptions[i];
   if (!option) return;
   if (!current.summaryOriginal) current.summaryOriginal = current.doc.summary;
   current.doc = { ...current.doc, summary: option.text };
   finishChange({ summaryOriginal: current.summaryOriginal });
-  toast(`Summary changed to ${option.label}.`);
+  toast('Summary changed');
 }
 
 function restoreSummary() {
   if (!current.summaryOriginal) return;
   current.doc = { ...current.doc, summary: current.summaryOriginal };
   finishChange();
-  toast('Original summary restored.');
+  toast('Restored');
 }
 
 /* ---------- Compare: the posting and the draft, side by side ---------- */
@@ -954,7 +959,7 @@ function renderCompare() {
   $('cmp-chips').innerHTML = terms.map((t, i) => `<button type="button" class="${resumeSide.counts[i] ? 'hit' : 'miss'}" data-k="${i}" aria-pressed="${cmp.active === i}">${esc(t)}<small>${postingSide ? postingSide.counts[i] : '?'} · ${resumeSide.counts[i]}</small></button>`).join('');
   $('cmp-posting-body').innerHTML = postingSide
     ? postingSide.html
-    : `<p class="none">The posting text was not saved for this older resume. Copy the posting and tap below to add it.<br><button type="button" id="cmp-paste" class="chip-btn">${icon('clipboard')}Paste the posting</button></p>`;
+    : `<p class="none">No posting saved<br><button type="button" id="cmp-paste" class="btn small">${icon('clipboard')}<span>Paste</span></button></p>`;
   $('cmp-resume-body').innerHTML = resumeSide.html;
   for (const b of document.querySelectorAll('.seg button')) b.setAttribute('aria-pressed', String(b.dataset.pane === cmp.mode));
   $('cmp-panes').dataset.mode = cmp.mode;
@@ -976,7 +981,7 @@ function focusTerm(k, { scroll = true } = {}) {
     }
   }
   const missing = inResume.length === 0;
-  $('cmp-detail').innerHTML = `${esc(terms[k])}: ${current.postingText ? `${inPosting.length} in the posting, ` : ''}${inResume.length} in your resume.${missing ? ` <button type="button" class="chip-btn" id="cmp-find">${icon('sparkle')}Find wording</button>` : ''}`;
+  $('cmp-detail').innerHTML = `<b>${esc(terms[k])}</b> · ${current.postingText ? `posting ${inPosting.length} · ` : ''}draft ${inResume.length}${missing ? ` <button type="button" class="btn small" id="cmp-find">${icon('sparkle')}<span>Find</span></button>` : ''}`;
 }
 
 function openCompare(k = -1) {
@@ -990,12 +995,12 @@ function openCompare(k = -1) {
 async function pastePostingIntoEntry() {
   try {
     const text = (await navigator.clipboard.readText()).trim();
-    if (text.length < 40) { toast('That did not look like a posting.'); return; }
+    if (text.length < 40) { toast('Too short'); return; }
     current.postingText = text.slice(0, 15000);
     saveEntry({ postingText: current.postingText });
     renderCompare();
-    toast('Posting added.');
-  } catch { toast('Paste was blocked by the browser.'); }
+    toast('Added');
+  } catch { toast('Paste blocked'); }
 }
 
 // One Copy button per section and per job, so a single application field can be filled with one tap.
@@ -1021,7 +1026,7 @@ function copyButton(what, target) {
 }
 
 async function writeClipboard(text, done) {
-  try { await navigator.clipboard.writeText(text); toast(done); } catch { toast('Copy was blocked. Use Download instead.'); }
+  try { await navigator.clipboard.writeText(text); toast(done); } catch { toast('Copy blocked'); }
 }
 
 function copySection(target) {
@@ -1037,7 +1042,7 @@ async function makePdf() {
     let doc = current.doc;
     if (current.edited) {
       doc = docFromText(current.text);
-      if (!doc) { doc = current.doc; toast('Your edited text could not be laid out, so the generated resume was used.'); }
+      if (!doc) { doc = current.doc; toast('Used the original layout'); }
     }
     const out = await buildPdf(doc, { title: [current.title, current.company].filter(Boolean).join(' at ') || undefined });
     const url = URL.createObjectURL(new Blob([out.bytes], { type: 'application/pdf' }));
@@ -1046,9 +1051,9 @@ async function makePdf() {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    toast(`PDF ready: ${out.pages} page${out.pages === 1 ? '' : 's'}.`);
+    toast(`PDF · ${out.pages} pg`);
   } catch (err) {
-    toast(`Could not make the PDF: ${err.message}`);
+    toast(`PDF failed: ${err.message}`);
   } finally {
     setBusy(button, false);
   }
@@ -1061,7 +1066,7 @@ function download() {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  toast('Downloaded.');
+  toast('Saved');
 }
 
 function toggleEdit() {
@@ -1088,7 +1093,7 @@ function revertEdit() {
   current.edited = false;
   saveCurrentToHistory();
   renderCurrent();
-  toast('Reverted to the generated resume.');
+  toast('Reverted');
 }
 
 function saveCurrentToHistory() {
@@ -1126,31 +1131,31 @@ function renderQuestions() {
 
   const q = questions[qIndex];
   const state = qState[qIndex];
-  $('q-step').textContent = `Question ${qIndex + 1} of ${questions.length}`;
+  $('q-step').textContent = `${qIndex + 1} / ${questions.length}`;
   $('q-dots').innerHTML = qState.map((s, i) => `<i class="${i === qIndex ? 'cur' : s === 'saved' || s === 'dismissed' ? 'done' : s === 'skipped' ? 'skip' : ''}"></i>`).join('');
   $('q-prev').disabled = qIndex === 0;
   $('q-next').disabled = qIndex === questions.length - 1;
 
   const role = q.role_id && profile.roles.find((r) => r.id === q.role_id);
-  const tags = `<div class="q-tags"><span class="tag">${esc(KIND_LABELS[q.kind] || 'Question')}</span>${role ? `<span class="tag role">${esc(role.org)}</span>` : ''}${state === 'skipped' ? '<span class="tag role">Skipped earlier</span>' : ''}</div>`;
+  const tags = `<div class="q-tags"><span class="tag">${esc(KIND_LABELS[q.kind] || 'Question')}</span>${role ? `<span class="tag role">${esc(role.org)}</span>` : ''}${state === 'skipped' ? '<span class="tag role">Skipped</span>' : ''}</div>`;
   const text = `<p class="q-text">${esc(q.text)}</p>`;
   if (state === 'saved' || state === 'dismissed') {
-    $('q-card').innerHTML = `${tags}${text}<p class="q-status">${state === 'saved' ? 'Saved. It will not be asked again.' : 'Got it. It will not be asked again.'}</p>`;
+    $('q-card').innerHTML = `${tags}${text}<p class="q-status">${state === 'saved' ? 'Saved' : 'Dismissed'}</p>`;
     return;
   }
   const body = q.kind === 'conflict' && q.options?.length
     ? `<div class="q-options">${q.options.map((o, j) => `<button type="button" class="btn" data-act="choice" data-j="${j}">${esc(o.label)}</button>`).join('')}</div>`
-    : `<textarea id="q-answer" rows="4" aria-label="Your answer" placeholder="Your answer, in your own words"></textarea>
-       <div class="q-actions"><button type="button" class="btn primary" data-act="fact">Save as fact</button><button type="button" class="btn" data-act="preference">Save as preference</button></div>`;
-  $('q-card').innerHTML = `${tags}${text}${body}<div class="q-more"><button type="button" class="btn ghost" data-act="skip">Skip for now</button><button type="button" class="btn ghost" data-act="dismiss">Don't ask again</button></div>`;
+    : `<textarea id="q-answer" rows="4" aria-label="Your answer" placeholder="Answer"></textarea>
+       <div class="q-actions"><button type="button" class="btn primary" data-act="fact">Fact</button><button type="button" class="btn" data-act="preference">Preference</button></div>`;
+  $('q-card').innerHTML = `${tags}${text}${body}<div class="q-more"><button type="button" class="btn quiet" data-act="skip">Skip</button><button type="button" class="btn quiet" data-act="dismiss">Never</button></div>`;
 }
 
 function renderQuestionsDone() {
   const saved = qState.filter((s) => s === 'saved' || s === 'dismissed').length;
   const pending = pendingItems(knowledge).length;
-  $('q-done').innerHTML = `<h2>All answered</h2><p>${saved} saved. Those questions will not be asked again.</p>
-    ${pending ? `<button type="button" class="btn primary block" data-done="merge">Merge ${pending} into my library</button>` : ''}
-    ${current?.postingText ? `<button type="button" class="btn tonal block" data-done="regen">${icon('refresh')}Regenerate the resume with my answers</button>` : `<button type="button" class="btn tonal block" data-done="again">Tailor again with my answers</button>`}`;
+  $('q-done').innerHTML = `<p class="done-line">${icon('check')}${saved} answered</p>
+    ${pending ? `<button type="button" class="btn primary block" data-done="merge">Merge ${pending}</button>` : ''}
+    ${current?.postingText ? `<button type="button" class="btn block" data-done="regen">${icon('refresh')}<span>Redo with answers</span></button>` : `<button type="button" class="btn block" data-done="again">Tailor again</button>`}`;
 }
 
 async function answerQuestion(event) {
@@ -1172,7 +1177,7 @@ async function answerQuestion(event) {
     answer = { action: 'dismiss' };
   } else {
     const text = $('q-answer').value.trim();
-    if (!text) { toast('Type your answer first.'); $('q-answer').focus(); return; }
+    if (!text) { toast('Type an answer'); $('q-answer').focus(); return; }
     answer = { action: act, text };
   }
   knowledge = applyAnswer(knowledge, q, answer);
@@ -1192,9 +1197,9 @@ function goNext() {
 
 async function startMerge() {
   const pending = pendingItems(knowledge);
-  if (!pending.length) { toast('Nothing waiting to merge.'); return; }
+  if (!pending.length) { toast('Nothing to merge'); return; }
   const box = $('review');
-  box.innerHTML = '<p role="status">Claude is drafting library changes...</p>';
+  box.innerHTML = '<p role="status" class="none-yet">Drafting…</p>';
   showDialog('review-dialog');
   try {
     const input = await askClaude(buildLibrarianRequest(profile, pending), 'propose_library_changes');
@@ -1202,15 +1207,15 @@ async function startMerge() {
     const preview = applyPatch(profile, input.ops, evidence);
     reviewing = { pending, ops: input.ops, evidence, preview };
     const lines = preview.applied.map((a) => `<li>${esc(describeOp(a.op, profile))}</li>`).join('');
-    const skipped = preview.skipped.map((x) => `<li class="skip">Skipped: ${esc(describeOp(x.op, profile))} (${esc(x.why)})</li>`).join('');
+    const skipped = preview.skipped.map((x) => `<li class="skip">Skipped · ${esc(describeOp(x.op, profile))} (${esc(x.why)})</li>`).join('');
     const questions = input.clarify || [];
-    const clarify = questions.map((c, i) => `<li class="clarify"><label for="clar-${i}">Needs your input</label><p>${esc(c)}</p>
-      <textarea id="clar-${i}" rows="2" data-q="${esc(c)}" placeholder="Type your answer" aria-label="Your answer"></textarea>
-      <div class="chips"><button type="button" class="chip-btn" data-fill="clar-${i}" data-text="Yes">Yes</button><button type="button" class="chip-btn" data-fill="clar-${i}" data-text="No">No</button></div></li>`).join('');
+    const clarify = questions.map((c, i) => `<li class="clarify"><label for="clar-${i}">Question</label><p>${esc(c)}</p>
+      <textarea id="clar-${i}" rows="2" data-q="${esc(c)}" placeholder="Answer" aria-label="Your answer"></textarea>
+      <div class="toggles"><button type="button" class="toggle-btn" data-fill="clar-${i}" data-text="Yes">Yes</button><button type="button" class="toggle-btn" data-fill="clar-${i}" data-text="No">No</button></div></li>`).join('');
     box.innerHTML = `<p>${esc(input.summary || '')}</p>
-      <ul class="cards">${lines || '<li>No new entries. Everything is already in the library.</li>'}${skipped}${clarify}</ul>
-      ${questions.length ? '<button type="button" id="revise" class="btn tonal block" disabled>Answer, then update the changes</button>' : ''}
-      <div class="row2"><button type="button" id="approve" class="btn primary">${preview.applied.length ? 'Approve and merge' : 'Mark as handled'}</button>
+      <ul class="cards">${lines || '<li class="none-yet">Nothing new</li>'}${skipped}${clarify}</ul>
+      ${questions.length ? '<button type="button" id="revise" class="btn block" disabled>Update</button>' : ''}
+      <div class="row2"><button type="button" id="approve" class="btn primary">${preview.applied.length ? 'Merge' : 'Done'}</button>
       <button type="button" id="cancel-merge" class="btn">Cancel</button></div><p id="review-msg" class="hint" role="status"></p>`;
     if (questions.length) {
       const refresh = () => { $('revise').disabled = !box.querySelector('textarea[data-q]:not(:placeholder-shown)'); };
@@ -1251,18 +1256,18 @@ async function approveMerge() {
       if (!token) {
         const text = preview.applied.map((a) => describeOp(a.op, profile)).join('\n');
         try { await navigator.clipboard.writeText(text); } catch { /* ignore */ }
-        msg.textContent = 'No GitHub token, so nothing was saved. The changes were copied; paste them into the Claude Code chat, or add a token in Settings and try again.';
+        msg.textContent = 'No GitHub token. Copied instead';
         $('approve').disabled = false;
         return;
       }
-      msg.textContent = 'Saving to your library...';
+      msg.textContent = 'Saving…';
       const done = await updateLibrary(token, (remote) => applyPatch(remote, ops, evidence), 'Merge answers into the library');
       profile = done.profile;
       refreshProfileViews();
     }
     knowledge = markMerged(knowledge, pending);
     await persist();
-    $('review').innerHTML = '<p role="status">Merged. Your library is up to date, and those questions will not be asked again.</p><button type="button" class="btn block" data-close>Done</button>';
+    $('review').innerHTML = '<p role="status" class="done-line">Merged</p><button type="button" class="btn block" data-close>Done</button>';
     reviewing = null;
     renderQuestions();
   } catch (err) {
@@ -1273,7 +1278,7 @@ async function approveMerge() {
 
 async function teach() {
   const text = $('teach').value.trim();
-  if (!text) { toast('Type something to teach first.'); return; }
+  if (!text) { toast('Type something'); return; }
   knowledge = applyAnswer(knowledge, { text }, { action: 'note', text });
   $('teach').value = '';
   await persist();
@@ -1285,28 +1290,29 @@ async function teach() {
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const MOD = IS_MAC ? '⌘' : 'Ctrl';
 const ALT = IS_MAC ? '⌥' : 'Alt';
-const VIEW_NAMES = { tailor: 'Tailor', resume: 'Resume', improve: 'Improve', compare: 'Compare', questions: 'Questions', library: 'Library', history: 'History' };
-const VIEW_KEYS = ['tailor', 'resume', 'improve', 'questions', 'library', 'history'];
+const VIEW_NAMES = { tailor: 'New', resume: 'Resume', compare: 'Compare', library: 'Library' };
+// Alt + number: the stage, then the inspector tabs.
+const NAV = [['view', 'tailor', 'New'], ['view', 'library', 'Library'], ['tab', 'fit', 'Fit'], ['tab', 'terms', 'Terms'], ['tab', 'edits', 'Edits'], ['tab', 'checks', 'Checks'], ['tab', 'questions', 'Ask']];
 
-// The window title shows where you are, and on the Resume and Improve tabs, which resume.
+// The window title names the resume you are in.
 function updateTitle() {
   const view = document.querySelector('.view:not([hidden])')?.dataset.view;
-  if (!view || $('app').hidden) { document.title = 'Resume Advisor'; $('toolbar-title').textContent = ''; return; }
-  const name = VIEW_NAMES[view] || '';
-  const about = current && ['resume', 'improve', 'compare'].includes(view) ? [current.title, current.company].filter(Boolean).join(' at ') : '';
-  document.title = `${about ? `${about} – ` : ''}${name} · Resume Advisor`;
-  $('toolbar-title').textContent = about ? `${name}  ·  ${about}` : name;
+  if (!view || $('app').hidden) { document.title = 'Resume Advisor'; return; }
+  const about = current && ['resume', 'compare'].includes(view) ? [current.title, current.company].filter(Boolean).join(' at ') : '';
+  document.title = `${about || VIEW_NAMES[view] || ''} \u00b7 Resume Advisor`;
 }
 
 const SHORTCUTS = [
-  ['Quick actions', `${MOD} K`],
-  ['Go to Tailor, Resume, Improve, Questions, Library, History', `${ALT} 1 to 6`],
-  ['Ask for a change to the resume', '/'],
-  ['Send the change request, or tailor the resume', `${MOD} Enter`],
-  ['Copy the whole resume', `${MOD} Shift C`],
-  ['Download the PDF', `${MOD} S`],
-  ['Show these shortcuts', '?'],
-  ['Close a window or the quick actions', 'Esc']
+  ['Commands', `${MOD} K`],
+  ['New', `${ALT} 1`],
+  ['Library', `${ALT} 2`],
+  ['Fit, Terms, Edits, Checks, Ask', `${ALT} 3 to 7`],
+  ['Ask for a change', '/'],
+  ['Tailor, or send a change', `${MOD} Enter`],
+  ['Paste a posting', `${MOD} V`],
+  ['Copy resume', `${MOD} Shift C`],
+  ['PDF', `${MOD} S`],
+  ['Keys', '?']
 ];
 
 function showKeys() {
@@ -1318,25 +1324,24 @@ let paletteItems = [];
 let paletteActive = 0;
 
 function paletteCommands() {
-  const go = (view, key) => ({ group: 'Go to', label: VIEW_NAMES[view], hint: `${ALT} ${key}`, run: () => showView(view) });
-  const list = VIEW_KEYS.map((v, i) => go(v, i + 1));
+  const list = NAV.map(([kind, name, label], i) => ({ group: 'Go to', label, hint: `${ALT} ${i + 1}`, run: () => (kind === 'view' ? showView(name) : current ? showView('resume', name) : showView('tailor')) }));
   if (current) {
     list.push(
-      { group: 'This resume', label: 'Ask for a change', hint: '/', run: () => askFor('') },
-      { group: 'This resume', label: 'Regenerate', run: openRegenerate },
-      { group: 'This resume', label: 'Copy the whole resume', hint: `${MOD} Shift C`, run: () => writeClipboard(current.text, 'Copied the full resume.') },
-      { group: 'This resume', label: 'Download as PDF', hint: `${MOD} S`, run: () => $('pdf').click() },
-      { group: 'This resume', label: 'Download as text', run: download },
-      { group: 'This resume', label: 'Compare posting and resume', run: () => openCompare() },
-      { group: 'This resume', label: 'Re-check the fit against my library', run: () => { showView('improve'); assessFit(); } }
+      { group: 'Resume', label: 'Ask for a change', hint: '/', run: () => askFor('') },
+      { group: 'Resume', label: 'Redo', run: openRegenerate },
+      { group: 'Resume', label: 'Copy', hint: `${MOD} Shift C`, run: () => writeClipboard(current.text, 'Copied') },
+      { group: 'Resume', label: 'PDF', hint: `${MOD} S`, run: () => $('pdf').click() },
+      { group: 'Resume', label: 'TXT', run: download },
+      { group: 'Resume', label: 'Compare', run: () => openCompare() },
+      { group: 'Resume', label: 'Rescore fit', run: () => { showView('resume', 'fit'); assessFit(); } }
     );
   }
   list.push(
-    { group: 'App', label: 'Change theme', run: cycleTheme },
+    { group: 'App', label: 'Theme', run: cycleTheme },
     { group: 'App', label: 'Settings', run: () => showDialog('settings-dialog') },
-    { group: 'App', label: 'Keyboard shortcuts', hint: '?', run: showKeys }
+    { group: 'App', label: 'Keys', hint: '?', run: showKeys }
   );
-  for (const e of history.slice(0, 15)) list.push({ group: 'Open resume', label: historyLabel(e), hint: shortDate(e.at), run: () => { loadEntry(e); setQuestions([]); showView('resume'); } });
+  for (const e of history.slice(0, 20)) list.push({ group: 'Open', label: historyLabel(e), hint: shortDate(e.at), run: () => { loadEntry(e); setQuestions([]); showView('resume'); } });
   return list;
 }
 
@@ -1371,14 +1376,10 @@ function runPalette(i) {
 }
 
 function wireDesktop() {
-  for (const k of document.querySelectorAll('kbd[data-key]')) {
-    const key = k.dataset.key;
-    k.textContent = /^\d$/.test(key) ? `${ALT} ${key}` : `${MOD} ${key}`;
-  }
+  $('kbd-new').textContent = `${ALT} 1`;
+  $('kbd-go').textContent = `${MOD} \u21b5`;
   for (const b of document.querySelectorAll('.icon-btn[aria-label]')) b.title = b.getAttribute('aria-label');
   $('open-palette').addEventListener('click', openPalette);
-  $('side-palette').addEventListener('click', openPalette);
-  $('side-keys').addEventListener('click', showKeys);
   $('palette-q').addEventListener('input', () => { paletteActive = 0; renderPalette(); });
   $('palette-q').addEventListener('keydown', (e) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -1401,11 +1402,16 @@ function wireDesktop() {
     const open = document.querySelector('dialog[open]');
     if (mod && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); if ($('palette').open) $('palette').close(); else openPalette(); return; }
     if (open) return;
-    if (e.altKey && !mod && /^Digit[1-6]$/.test(e.code)) { e.preventDefault(); showView(VIEW_KEYS[Number(e.code.slice(5)) - 1]); return; }
+    if (e.altKey && !mod && /^Digit[1-7]$/.test(e.code)) {
+      e.preventDefault();
+      const [kind, name] = NAV[Number(e.code.slice(5)) - 1];
+      if (kind === 'view') showView(name); else if (current) showView('resume', name);
+      return;
+    }
     if (mod && !e.altKey && current) {
       const k = e.key.toLowerCase();
       if (k === 's' && !e.shiftKey) { e.preventDefault(); $('pdf').click(); return; }
-      if (k === 'c' && e.shiftKey) { e.preventDefault(); writeClipboard(current.text, 'Copied the full resume.'); return; }
+      if (k === 'c' && e.shiftKey) { e.preventDefault(); writeClipboard(current.text, 'Copied'); return; }
     }
     if (mod && e.key === '/') { e.preventDefault(); showKeys(); return; }
     if (typing || mod || e.altKey) return;
@@ -1424,7 +1430,7 @@ function wireDesktop() {
     e.preventDefault();
     const file = [...(e.dataTransfer.files || [])].find((f) => /^text\/|\.(txt|md|text)$/i.test(f.type + f.name));
     if (file) acceptPasted(await file.text());
-    else if (e.dataTransfer.files?.length) toast('Drop a text file, or text copied from the posting.');
+    else if (e.dataTransfer.files?.length) toast('Drop text');
     else acceptPasted(e.dataTransfer.getData('text/plain'));
   });
 }
@@ -1432,51 +1438,39 @@ function wireDesktop() {
 /* ---------- history ---------- */
 
 function renderHistory() {
-  renderRecent();
-  $('history-empty').hidden = history.length > 0;
-  $('history').hidden = history.length === 0;
-  $('history').innerHTML = history.map((e) => {
-    const total = e.keywords ? e.keywords.covered.length + e.keywords.missing.length : 0;
-    const meta = [e.location, total ? `${e.keywords.covered.length} of ${total} keywords` : ''].filter(Boolean).join(' | ');
-    return `<li class="hcard" data-id="${esc(e.id)}">
-    <div class="hcard-top"><strong>${esc(historyLabel(e))}</strong><span class="meta">${esc(shortDate(e.at))}</span></div>
-    ${meta ? `<div class="meta">${esc(meta)}</div>` : ''}
-    <div class="hcard-actions">
-      <select aria-label="Status" data-status>${STATUSES.map((s) => `<option${s === e.status ? ' selected' : ''}>${s}</option>`).join('')}</select>
-      <button type="button" class="chip-btn" data-open>Open resume</button>
-      ${e.link ? `<a class="chip-btn" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">Application</a>` : ''}
-      <button type="button" class="chip-btn" data-delete>Delete</button>
-    </div></li>`;
-  }).join('');
+  renderRail();
 }
 
-// The last few resumes, on the Tailor screen, so picking one back up is a single tap.
-function renderRecent() {
-  const recent = history.slice(0, 3);
-  $('recent').hidden = recent.length === 0;
-  $('recent-list').innerHTML = recent.map((e) => `<li data-id="${esc(e.id)}"><span>${esc(historyLabel(e))}</span><span>${esc(shortDate(e.at))}</span></li>`).join('');
+// The list of resumes in the left rail. The open one is marked; status shows as a dot.
+function renderRail() {
+  const dot = { Drafted: 'draft', Applied: 'applied', Interviewing: 'live', Offer: 'win', Rejected: 'out', Withdrawn: 'out' };
+  $('history').innerHTML = history.map((e) => `<li data-id="${esc(e.id)}"${current && e.id === current.id && document.body.dataset.view === 'resume' ? ' aria-current="true"' : ''}>
+    <button type="button" class="ritem" data-open><span class="dot ${dot[e.status] || 'draft'}" title="${esc(e.status || 'Drafted')}"></span>
+      <span class="ritem-text"><strong>${esc(e.title || 'Resume')}</strong><span>${esc(e.company || shortDate(e.at))}</span></span></button>
+    <button type="button" class="ritem-x" data-delete aria-label="Delete"><i data-icon="close"></i></button></li>`).join('');
+  hydrateIcons($('history'));
 }
 
 function onHistoryClick(event) {
-  const card = event.target.closest('.hcard');
-  if (!card) return;
-  const entry = history.find((e) => e.id === card.dataset.id);
+  const li = event.target.closest('li[data-id]');
+  if (!li) return;
+  const entry = history.find((e) => e.id === li.dataset.id);
   if (!entry) return;
-  if (event.target.closest('[data-open]')) { loadEntry(entry); setQuestions([]); showView('resume'); }
   if (event.target.closest('[data-delete]')) {
+    const snapshot = history;
     history = removeHistory(history, entry.id);
     persistHistory();
+    if (current?.id === entry.id) { current = null; showView('tailor'); }
     renderHistory();
-    toast('Deleted.');
-  }
+    toast('Deleted', { label: 'Undo', run: () => { history = snapshot; persistHistory(); renderHistory(); } });
+  } else if (event.target.closest('[data-open]')) { loadEntry(entry); setQuestions([]); showView('resume'); }
 }
 
-function onHistoryChange(event) {
-  const select = event.target.closest('[data-status]');
-  const card = event.target.closest('.hcard');
-  if (!select || !card) return;
-  history = updateEntry(history, card.dataset.id, { status: select.value });
+function onStatusChange() {
+  if (!current) return;
+  history = updateEntry(history, current.id, { status: $('res-status').value });
   persistHistory();
+  renderRail();
 }
 
 /* ---------- start-up ---------- */
@@ -1502,10 +1496,10 @@ async function init() {
     const key = cleanKey($('key').value);
     const msg = $('login-msg');
     if (!key.startsWith('sk-ant-')) {
-      msg.textContent = `That does not look like an Anthropic API key. Keys start with "sk-ant-" (yours starts with "${key.slice(0, 7)}", ${key.length} characters). Copy the full key from the Anthropic Console; it is shown only once when created.`;
+      msg.textContent = 'Key must start with sk-ant-';
       return;
     }
-    msg.textContent = 'Checking...';
+    msg.textContent = 'Checking…';
     try {
       await checkKey(key);
       setKey(key, $('remember').checked);
@@ -1514,7 +1508,7 @@ async function init() {
       show(true);
     } catch (err) {
       msg.textContent = err instanceof TypeError
-        ? 'Could not reach Anthropic. Check your connection, VPN, or content blocker, then try again.'
+        ? 'Cannot reach Anthropic'
         : err.message;
     }
   });
@@ -1535,13 +1529,13 @@ async function init() {
     if (close) close.closest('dialog').close();
     if (e.target instanceof HTMLDialogElement) e.target.close();
   });
-  $('signout').addEventListener('click', () => { clearKey(); $('settings-dialog').close(); show(false); toast('Signed out.'); });
+  $('signout').addEventListener('click', () => { clearKey(); $('settings-dialog').close(); show(false); toast('Signed out'); });
   $('clear-history').addEventListener('click', () => {
     if (!confirm('Remove all saved applications from this device?')) return;
     history = [];
     store.del(HISTORY_STORE);
     renderHistory();
-    toast('History cleared.');
+    toast('Cleared');
   });
   $('model').addEventListener('change', () => store.set('resume-advisor-model', $('model').value));
 
@@ -1567,7 +1561,7 @@ async function init() {
   $('paste-catch').addEventListener('input', (e) => { if (/^insertFrom(Paste|Drop)/.test(e.inputType || '')) acceptPasted($('paste-catch').value); });
   $('paste').addEventListener('click', async () => {
     try { acceptPasted(await navigator.clipboard.readText()); }
-    catch { $('paste-catch').focus(); toast('Press and hold in the box, then choose Paste.'); }
+    catch { $('paste-catch').focus(); toast('Press Ctrl V in the box'); }
   });
   $('clear-posting').addEventListener('click', () => setPosting('', ''));
   $('view-posting').addEventListener('click', () => {
@@ -1583,6 +1577,8 @@ async function init() {
   $('composer-text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('composer').requestSubmit(); } });
   for (const id of ['fit-strip', 'fit-detail']) {
     $(id).addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-tab]');
+      if (tab) { showView('resume', tab.dataset.tab); return; }
       if (e.target.closest('[data-fit="again"]')) { assessFit(); return; }
       const ask = e.target.closest('[data-ask]');
       if (ask) { const r = currentScores()?.rows[Number(ask.dataset.ask)]; if (r) askFor(`Show my experience with ${r.text.replace(/[.\s]+$/, '')}.`); return; }
@@ -1597,7 +1593,7 @@ async function init() {
     if (!t.value.includes(b.dataset.idea)) t.value = `${t.value.trim()} ${b.dataset.idea}`.trim();
     navigator.vibrate?.(6);
   });
-  $('copy').addEventListener('click', () => writeClipboard(current.text, 'Copied the full resume.'));
+  $('copy').addEventListener('click', () => writeClipboard(current.text, 'Copied'));
   $('download').addEventListener('click', download);
   $('pdf').addEventListener('click', () => { if (editing) toggleEdit(); makePdf(); });
   $('suggestions').addEventListener('click', onSuggestion);
@@ -1606,8 +1602,9 @@ async function init() {
   $('sum-gen').addEventListener('click', writeSummaries);
   $('sum-restore').addEventListener('click', restoreSummary);
   $('sum-options').addEventListener('click', (e) => { const li = e.target.closest('li[data-i]'); if (li && e.target.closest('[data-sum]')) useSummary(Number(li.dataset.i)); });
-  $('open-improve').addEventListener('click', () => showView('improve'));
-  $('open-history').addEventListener('click', () => showView('history'));
+  $('inspector').addEventListener('click', (e) => { const t = e.target.closest('[data-tab]'); if (t) showTab(t.dataset.tab); });
+  $('res-status').innerHTML = STATUSES.map((x) => `<option>${x}</option>`).join('');
+  $('res-status').addEventListener('change', onStatusChange);
   wireDesktop();
   $('open-compare-top').addEventListener('click', () => openCompare());
   $('open-compare').addEventListener('click', () => openCompare());
@@ -1619,7 +1616,7 @@ async function init() {
     if (!e.target.closest('#cmp-find')) return;
     const term = kwList()[cmp.active];
     await suggestMore([term]);
-    showView('improve');
+    showView('resume', 'edits');
   });
   $('cmp-posting-body').addEventListener('click', (e) => { if (e.target.closest('#cmp-paste')) pastePostingIntoEntry(); });
   $('auto-suggest').addEventListener('change', () => store.set(AUTOSUGGEST_STORE, $('auto-suggest').checked ? '1' : '0'));
@@ -1651,13 +1648,7 @@ async function init() {
   });
 
   // history
-  $('recent-list').addEventListener('click', (e) => {
-    const li = e.target.closest('li[data-id]');
-    const entry = li && history.find((h) => h.id === li.dataset.id);
-    if (entry) { loadEntry(entry); setQuestions([]); showView('resume'); }
-  });
   $('history').addEventListener('click', onHistoryClick);
-  $('history').addEventListener('change', onHistoryChange);
 
   // sync token
   $('token-form').addEventListener('submit', async (e) => {

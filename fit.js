@@ -5,8 +5,8 @@
 // claim needs its own words in that source), then scores it. The score against the draft is computed here from
 // the draft's own text, so it moves as the resume changes. Nothing here asks the model to rate the draft.
 
-import { keywordCoverage, splitProfile, yearsSince, withProfilePreferences, sourceTextLookup } from './lib.js?v=28';
-import { knowledgeForPrompt } from './knowledge.js?v=28';
+import { keywordCoverage, splitProfile, yearsSince, withProfilePreferences, sourceTextLookup } from './lib.js?v=29';
+import { knowledgeForPrompt } from './knowledge.js?v=29';
 
 export const FIT_SYSTEM = `You compare one job posting with Kevin Broadie's resume library and report how well the library supports each of the posting's requirements.
 

@@ -90,12 +90,12 @@ test('the favicon set exists and the page and manifest point at real files', () 
   assert.equal([png.readUInt32BE(16), png.readUInt32BE(20)].join('x'), '180x180');
 });
 
-test('the download buttons say they download, and the page has the Improve and Compare views', () => {
+test('the download buttons say what they download, and the workspace has the inspector tabs and Compare', () => {
   const html = read('index.html');
-  assert.match(html, /id="download"[^>]*aria-label="Download as a text file"/);
-  assert.match(html, /id="pdf"[^>]*aria-label="Download as a PDF"/);
-  assert.match(html, /<span class="dl-label"><i data-icon="download"><\/i>Download<\/span>/);
-  for (const id of ['v-improve', 'v-compare', 'cmp-posting-body', 'cmp-resume-body', 'sum-gen', 'sug-all', 'cov-fill']) assert.ok(html.includes(`id="${id}"`), id);
+  assert.match(html, /id="download"[^>]*aria-label="Download text"/);
+  assert.match(html, /id="pdf"[^>]*aria-label="Download PDF"/);
+  for (const id of ['inspector', 'v-compare', 'cmp-posting-body', 'cmp-resume-body', 'sum-gen', 'sug-all', 'cov-fill', 'fit-detail', 'composer']) assert.ok(html.includes(`id="${id}"`), id);
+  for (const tab of ['fit', 'terms', 'edits', 'checks', 'questions']) assert.ok(html.includes(`data-tab="${tab}"`), tab);
 });
 
 test('keyword matching stays consistent between the checker and the highlighter', () => {
