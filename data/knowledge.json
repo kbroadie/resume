@@ -5,6 +5,11 @@
       "question": "Did you prototype or test the survey app with users before launch? If so, add how, and what changed. That would support the posting's prototyping and testing requirements.",
       "answer": "Yes. Touch screen tv in a conference room with only transportation department director and managers as an audience and the executive director giving the presentation. I gave the ED a minimal overview of the navigation, how the math works, and the results page. I observed the ED intently, looking at efficiency of movement, micro expressions of uncertainty or frustration, and felt the engagement energy of the room. Afterwards I shared my observations and refinement ideas with the ED who also gave me his feedback. I'd make the changes then do a stress test in the real presentation setting then refine on the spot.",
       "at": "2026-10-30T06:37:50.148Z"
+    },
+    "workshop-facilitation": {
+      "question": "Have you led workshops or ideation sessions with stakeholders (the posting's co-creation workshops)? For example, did you run the TPPS survey sessions or design meetings at CVAG?",
+      "answer": "The tpps survey focus group with directors and managers was a workshop experience I designed",
+      "at": "2026-10-30T06:40:49.763Z"
     }
   },
   "choices": {},
@@ -16,6 +21,13 @@
       "text": "Yes. Touch screen tv in a conference room with only transportation department director and managers as an audience and the executive director giving the presentation. I gave the ED a minimal overview of the navigation, how the math works, and the results page. I observed the ED intently, looking at efficiency of movement, micro expressions of uncertainty or frustration, and felt the engagement energy of the room. Afterwards I shared my observations and refinement ideas with the ED who also gave me his feedback. I'd make the changes then do a stress test in the real presentation setting then refine on the spot.",
       "at": "2026-10-30T06:39:00.832Z",
       "merged": true
+    },
+    "k.workshop-facilitation.mvulsi8z": {
+      "id": "k.workshop-facilitation.mvulsi8z",
+      "topic": "workshop-facilitation",
+      "role_id": null,
+      "text": "The tpps survey focus group with directors and managers was a workshop experience I designed",
+      "at": "2026-10-30T06:40:49.763Z"
     }
   },
   "preferences": {},
