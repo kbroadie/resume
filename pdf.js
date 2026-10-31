@@ -9,9 +9,13 @@
 // layoutResume() is pure: it takes a measuring function and returns positioned text, so it can be tested without
 // a browser. buildPdf() embeds the fonts and draws the result.
 
-import { typo } from './lib.js?v=29';
+import { typo } from './lib.js?v=30';
 
-export const PAGE = { width: 612, height: 792, left: 72, right: 72, top: 62, bottom: 70 };
+// US Letter with 1 inch above and below and 1.5 inches at the sides.
+export const PAGE = { width: 612, height: 792, left: 108, right: 108, top: 72, bottom: 72 };
+// One page if it can be done: the base size runs from 10.5 down to 7.5 points, and no text is ever smaller than 7.5.
+export const MIN_SIZE = 7.5;
+export const MAX_SIZE = 10.5;
 
 const INK = [0.09, 0.08, 0.06];
 const INK2 = [0.31, 0.29, 0.25];
@@ -95,9 +99,10 @@ export function wrapRuns(runs, width, size, measure) {
 /* ---------- blocks ---------- */
 
 // Builds the document as blocks of lines. Every length scales with the base size.
-function buildBlocks(doc, size, measure) {
+function buildBlocks(doc, size, measure, leadRatio = 1.29) {
   const W = PAGE.width - PAGE.left - PAGE.right;
-  const lead = size * 1.29;
+  const lead = size * leadRatio;
+  const fs = (f) => Math.max(MIN_SIZE, size * f);   // a smaller companion size, never below the minimum
   const blocks = [];
   const T = (s) => typo(s);
   const plain = (text, font = 'r', color = INK) => [{ text: T(text), font, color }];
@@ -106,13 +111,13 @@ function buildBlocks(doc, size, measure) {
   blocks.push({ keepNext: true, lines: [{ kind: 'name', runs: plain(doc.name, 'd'), size: size * 2.45, lead: size * 2.7 }] });
   if (doc.headline) blocks.push({ keepNext: true, lines: [{ kind: 'headline', runs: plain(doc.headline, 'i', INK2), size, lead: lead }] });
   if (doc.contact.length) {
-    const contactLines = wrapRuns(plain(doc.contact.join(' · '), 'r', INK2), W, size * 0.94, measure);
-    blocks.push({ lines: contactLines.map((runs) => ({ kind: 'contact', runs, size: size * 0.94, lead })) });
+    const contactLines = wrapRuns(plain(doc.contact.join(' · '), 'r', INK2), W, fs(0.94), measure);
+    blocks.push({ lines: contactLines.map((runs) => ({ kind: 'contact', runs, size: fs(0.94), lead })) });
   }
 
   const heading = (title) => blocks.push({
     spaceBefore: size * 1.25, keepNext: true,
-    lines: [{ kind: 'heading', runs: [{ text: title.toUpperCase(), font: 's', color: INK }], size: size * 0.84, lead, tracking: size * 0.84 * 0.13, rule: true }]
+    lines: [{ kind: 'heading', runs: [{ text: title.toUpperCase(), font: 's', color: INK }], size: fs(0.84), lead, tracking: fs(0.84) * 0.13, rule: true }]
   });
   const paragraph = (runs, opts = {}) => {
     const lines = wrapRuns(runs, W - (opts.indent || 0), size, measure);
@@ -132,14 +137,14 @@ function buildBlocks(doc, size, measure) {
     heading('Experience');
     doc.experience.forEach((x, i) => {
       const dates = T(x.dates);
-      const datesW = measure(dates, 'n', size * 0.96);
+      const datesW = measure(dates, 'n', fs(0.96));
       const titleLines = wrapRuns(plain(x.title, 's'), W - datesW - size * 1.2, size, measure);
-      const head = titleLines.map((runs, k) => ({ kind: 'role', runs, size, lead, right: k === 0 ? { text: dates, font: 'n', color: INK2, size: size * 0.96 } : null }));
+      const head = titleLines.map((runs, k) => ({ kind: 'role', runs, size, lead, right: k === 0 ? { text: dates, font: 'n', color: INK2, size: fs(0.96) } : null }));
       const orgRuns = [];
       if (x.org) orgRuns.push({ text: T(x.org), font: 'i', color: INK });
       if (x.location) orgRuns.push({ text: `${x.org ? ', ' : ''}${T(x.location)}`, font: 'r', color: INK2 });
       if (orgRuns.length) {
-        for (const runs of wrapRuns(orgRuns, W, size * 0.97, measure)) head.push({ kind: 'org', runs, size: size * 0.97, lead });
+        for (const runs of wrapRuns(orgRuns, W, fs(0.97), measure)) head.push({ kind: 'org', runs, size: fs(0.97), lead });
       }
       blocks.push({ spaceBefore: i === 0 ? size * 0.05 : size * 0.75, keepNext: true, lines: head });
       x.bullets.forEach((b, k) => {
@@ -162,7 +167,7 @@ function buildBlocks(doc, size, measure) {
         const lines = [...wrapRuns(plain(parts[0], 'r'), W, size, measure).map((runs) => ({ kind: 'text', runs, size, lead }))];
         const where = [{ text: T(parts[1]), font: 'i', color: INK }];
         if (parts[2]) where.push({ text: `, ${T(parts[2])}`, font: 'r', color: INK2 });
-        for (const runs of wrapRuns(where, W, size * 0.97, measure)) lines.push({ kind: 'org', runs, size: size * 0.97, lead });
+        for (const runs of wrapRuns(where, W, fs(0.97), measure)) lines.push({ kind: 'org', runs, size: fs(0.97), lead });
         blocks.push({ spaceBefore: i === 0 ? size * 0.05 : size * 0.45, lines });
       } else {
         paragraph(plain(item), { spaceBefore: size * 0.15 });
@@ -223,14 +228,27 @@ function paginate(blocks) {
   return pages;
 }
 
-// Lays the resume out at the largest base size that gives the fewest pages (between 9.75 and 10.5 points).
+// Lays the resume out on one page at the largest base size that fits, from 10.5 points down to 7.5. If even the
+// minimum size with slightly tighter leading will not fit, the result has more than one page and fits is false.
 export function layoutResume(doc, measure) {
-  let best = null;
-  for (const size of [10.5, 10.25, 10, 9.75]) {
-    const pages = paginate(buildBlocks(doc, size, measure));
-    if (!best || pages.length < best.pages.length) best = { size, pages };
+  const tries = [];
+  for (let size = MAX_SIZE; size >= MIN_SIZE - 1e-9; size -= 0.25) tries.push([size, 1.29]);
+  tries.push([MIN_SIZE, 1.24], [MIN_SIZE, 1.2]);
+  let last = null;
+  for (const [size, ratio] of tries) {
+    const pages = paginate(buildBlocks(doc, size, measure, ratio));
+    last = { size, lead: ratio, pages, fits: pages.length === 1 };
+    if (last.fits) return last;
   }
-  return best;
+  return last;
+}
+
+// An estimate without the fonts: average Libertinus Serif widths, close enough to say whether it will fit.
+const AVG = (ch) => (/[A-Z]/.test(ch) ? 0.66 : /[ ,.;:'!|]/.test(ch) ? 0.25 : /[mwMW]/.test(ch) ? 0.78 : 0.45);
+const approxMeasure = (text, font, size, track = 0) => [...String(text)].reduce((w, ch) => w + size * AVG(ch) * (font === 's' ? 1.04 : 1) + (track || 0), 0);
+export function estimateLayout(doc) {
+  const out = layoutResume(doc, approxMeasure);
+  return { size: out.size, pages: out.pages.length, fits: out.fits };
 }
 
 /* ---------- drawing ---------- */
@@ -247,8 +265,8 @@ async function loadScript(src) {
 // deps: { PDFLib, fontkit, loadFont(file) -> Uint8Array }. In the browser the defaults load the vendored libraries.
 export async function buildPdf(doc, meta = {}, deps = null) {
   if (!deps) {
-    if (!window.PDFLib) await loadScript('vendor/pdf-lib.min.js?v=29');
-    if (!window.fontkit) await loadScript('vendor/fontkit.umd.min.js?v=29');
+    if (!window.PDFLib) await loadScript('vendor/pdf-lib.min.js?v=30');
+    if (!window.fontkit) await loadScript('vendor/fontkit.umd.min.js?v=30');
     deps = {
       PDFLib: window.PDFLib,
       fontkit: window.fontkit,
@@ -315,7 +333,7 @@ export async function buildPdf(doc, meta = {}, deps = null) {
   pdf.setCreator('Resume Advisor');
   pdf.setProducer('Resume Advisor');
   pdf.setLanguage?.('en-US');
-  return { bytes: await pdf.save(), pages: total, size: layout.size };
+  return { bytes: await pdf.save(), pages: total, size: layout.size, fits: layout.fits };
 }
 
 /* ---------- reading an edited plain-text resume back into a document ---------- */

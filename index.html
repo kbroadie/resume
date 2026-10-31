@@ -19,7 +19,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=29">
+  <link rel="stylesheet" href="styles.css?v=30">
 </head>
 <body>
   <!-- Sign in -->
@@ -43,6 +43,7 @@
       <div class="rail-top">
         <img class="logo" src="favicon.svg" alt="" width="24" height="24">
         <span class="wordmark">Resume Advisor</span>
+        <button type="button" class="icon-btn panel-toggle" data-panel-toggle="rail" aria-label="Collapse the list"><i data-icon="panel-left"></i></button>
       </div>
       <button type="button" class="rail-new" data-view="tailor" aria-current="page"><i data-icon="plus"></i><span>New</span><kbd id="kbd-new"></kbd></button>
       <ul id="history" class="rlist" aria-label="Resumes"></ul>
@@ -54,6 +55,7 @@
           <button id="open-settings" class="icon-btn" type="button" aria-label="Settings"><i data-icon="gear"></i></button>
         </div>
       </div>
+      <div id="split-rail" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize the list" tabindex="0"></div>
     </nav>
 
     <!-- Stage: one document at a time -->
@@ -112,8 +114,10 @@
         <header class="doc-bar">
           <div class="doc-title"><strong id="res-title"></strong><span id="res-sub"></span></div>
           <div class="doc-meta">
+            <button id="deadline" type="button" class="stat stat-btn due" hidden></button>
             <select id="res-status" aria-label="Status"></select>
             <a id="res-link" class="btn quiet" target="_blank" rel="noopener noreferrer" aria-label="Application" hidden><i data-icon="external"></i></a>
+            <button type="button" class="btn quiet panel-toggle" data-panel-toggle="ins" aria-label="Show or hide the panel"><i data-icon="panel-right"></i></button>
           </div>
         </header>
         <div class="doc-tools" role="toolbar" aria-label="Resume">
@@ -163,6 +167,7 @@
             <button type="button" data-pane="both" aria-pressed="true">Both</button>
             <button type="button" data-pane="resume" aria-pressed="false">Draft</button>
           </div>
+          <button type="button" class="btn quiet panel-toggle" data-panel-toggle="ins" aria-label="Show or hide the panel"><i data-icon="panel-right"></i></button>
         </header>
         <div id="cmp-chips" class="kw kw-row" role="group" aria-label="Terms"></div>
         <p id="cmp-detail" class="cmp-detail" role="status"></p>
@@ -199,6 +204,7 @@
 
     <!-- Right inspector: what to do with the draft -->
     <aside id="inspector" class="inspector" hidden>
+      <div id="split-ins" class="splitter left" role="separator" aria-orientation="vertical" aria-label="Resize the panel" tabindex="0"></div>
       <div class="tabs" role="tablist" aria-label="Inspector">
         <button type="button" role="tab" data-tab="fit" aria-selected="true"><i data-icon="gauge"></i><span>Fit</span></button>
         <button type="button" role="tab" data-tab="terms" aria-selected="false"><i data-icon="target"></i><span>Terms</span></button>
@@ -342,6 +348,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=29"></script>
+  <script type="module" src="app.js?v=30"></script>
 </body>
 </html>

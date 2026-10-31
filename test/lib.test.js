@@ -190,3 +190,25 @@ test('a revision request sends the current draft, and the prompt tells Claude to
   assert.match(SYSTEM_PROMPT, /CURRENT_DRAFT/);
   assert.doesNotMatch(SYSTEM_PROMPT, /fit_notes/);
 });
+
+test('the Grant Review Panelist role never has more than one bullet, however many the model sends', async () => {
+  const { buildDoc, ROLE_BULLET_CAP, RESUME_TOOL, SYSTEM_PROMPT } = await import('../lib.js');
+  const cac = profile.roles.find((r) => r.id === 'cac');
+  const bullets = cac.bullets.filter((b) => b.status === 'verified').map((b) => ({ text: b.text, source_ids: [b.id] }));
+  assert.ok(bullets.length >= 1);
+  const many = [...bullets, ...bullets, ...bullets];
+  const doc = buildDoc({ headline: 'H', summary: { text: 's', source_ids: [] }, skills: [], experience: [{ role_id: 'cac', bullets: many }, { role_id: 'cvag', bullets: [{ text: 'a', source_ids: [] }, { text: 'b', source_ids: [] }] }], education_ids: [], certification_ids: [], affiliation_ids: [] }, profile, { locationId: 'ps' });
+  assert.equal(ROLE_BULLET_CAP.cac, 1);
+  assert.equal(doc.experience.find((x) => /Grant Review/.test(x.title)).bullets.length, 1);
+  assert.equal(doc.experience.find((x) => /Branding/.test(x.title)).bullets.length, 2);
+  assert.match(SYSTEM_PROMPT, /"cac".*at most one bullet/);
+});
+
+test('the prompt asks for one page, no redundancy, and a quoted deadline, and the tool carries both deadline fields', async () => {
+  const { RESUME_TOOL, SYSTEM_PROMPT, buildRequest } = await import('../lib.js');
+  assert.match(SYSTEM_PROMPT, /one printed page/);
+  assert.match(SYSTEM_PROMPT, /No redundancy/);
+  assert.match(SYSTEM_PROMPT, /deadline_quote/);
+  for (const f of ['deadline_date', 'deadline_quote']) assert.ok(RESUME_TOOL.input_schema.required.includes(f), f);
+  assert.match(buildRequest(profile, { posting: 'P', now: new Date('2026-10-31T10:00:00Z') }).user, /"today":"2026-10-31"/);
+});

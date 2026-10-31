@@ -107,3 +107,19 @@ test('related word forms count as the same library term, so natural rewordings a
     { doc: d, knownText: () => 'Maintained classified and real estate databases.', libraryText: lib });
   assert.equal(bad.length, 0);
 });
+
+test('redundancy: near-duplicate lines, repeated opening verbs, and a skill listed twice are found; distinct lines are not', async () => {
+  const { findRedundancy } = await import('../ats.js');
+  const base = { summary: 'Designer with 27+ years of experience in brand and presentation work.', skills: [{ category: 'Design', items: ['Adobe InDesign'] }, { category: 'Tools', items: ['Adobe InDesign'] }], experience: [{ title: 'Art Director', bullets: [
+    'Led designers and programmers, recruiting, mentoring, and directing local designers and web developers.',
+    'Led designers and web developers, mentoring and directing local designers and programmers every week.',
+    'Led the creative process from concept to completion.',
+    'Led pitch decks and client presentations.'
+  ] }] };
+  const kinds = findRedundancy(base).map((r) => r.kind);
+  assert.ok(kinds.includes('similar'));
+  assert.ok(kinds.includes('verb'));
+  assert.ok(kinds.includes('skill'));
+  const clean = { summary: 'Designer with 27+ years of experience.', skills: [{ category: 'Design', items: ['Adobe InDesign'] }], experience: [{ title: 'Art Director', bullets: ['Grew a two-person collaboration into a ten-person agency.', 'Directed photo shoots of people, products, and places.', 'Registered trademarks through the USPTO.'] }] };
+  assert.deepEqual(findRedundancy(clean), []);
+});

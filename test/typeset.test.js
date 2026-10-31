@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { typo, buildDoc, renderText, renderHtml } from '../lib.js';
-import { layoutResume, wrapRuns, docFromText, FONT_VARIANTS, PAGE } from '../pdf.js';
+import { layoutResume, wrapRuns, docFromText, FONT_VARIANTS, PAGE, MIN_SIZE, MAX_SIZE, estimateLayout } from '../pdf.js';
 
 const profile = JSON.parse(readFileSync(new URL('../data/profile.json', import.meta.url)));
 const pick = (id, n) => ({ role_id: id, bullets: profile.roles.find((r) => r.id === id).bullets.slice(0, n).map((b) => ({ text: b.text, source_ids: [b.id] })) });
@@ -53,10 +53,18 @@ test('numbers and ampersands stay with the word they belong to', () => {
   }
 });
 
-test('the layout fits a full resume on two pages, keeps every line inside the margins, and never strands a heading', () => {
-  const { pages, size } = layoutResume(sample(), measure);
-  assert.ok(pages.length <= 2, `${pages.length} pages`);
-  assert.ok(size >= 9.75 && size <= 10.5);
+test('the page has 1 inch above and below and 1.5 inches at the sides', () => {
+  assert.deepEqual([PAGE.top, PAGE.bottom, PAGE.left, PAGE.right], [72, 72, 108, 108]);
+  assert.equal(PAGE.width - PAGE.left - PAGE.right, 396);
+  assert.equal(PAGE.height - PAGE.top - PAGE.bottom, 648);
+});
+
+test('the layout puts a resume on one page, keeps every line inside the margins, and never strands a heading', () => {
+  const out = layoutResume(sample(2), measure);
+  const { pages, size } = out;
+  assert.equal(pages.length, 1, `${pages.length} pages at ${size} pt`);
+  assert.ok(out.fits);
+  assert.ok(size >= MIN_SIZE && size <= MAX_SIZE);
   for (const lines of pages) {
     const last = lines.at(-1);
     assert.ok(!['heading', 'role', 'org'].includes(last.kind) || lines.length === 1, `page ends on a ${last.kind}`);
@@ -66,6 +74,29 @@ test('the layout fits a full resume on two pages, keeps every line inside the ma
       assert.ok(l.top + l.lead <= PAGE.height - PAGE.top - PAGE.bottom + 0.01, 'a line runs into the bottom margin');
     }
   }
+});
+
+test('no text is ever smaller than 7.5 points, whatever the base size', () => {
+  for (const n of [1, 3, 7, 12]) {
+    for (const l of layoutResume(sample(n), measure).pages.flat()) {
+      assert.ok(l.size >= MIN_SIZE - 1e-9, `${l.kind} line set at ${l.size} pt`);
+      if (l.right) assert.ok(l.right.size >= MIN_SIZE - 1e-9, 'dates set too small');
+    }
+  }
+});
+
+test('a resume that is too long shrinks to the minimum size, then reports that it does not fit', () => {
+  const huge = layoutResume(sample(40), measure);
+  assert.equal(huge.size, MIN_SIZE);
+  assert.equal(huge.fits, false);
+  assert.ok(huge.pages.length > 1);
+  const mid = layoutResume(sample(5), measure);
+  assert.ok(mid.size < MAX_SIZE || mid.pages.length === 1);
+});
+
+test('the estimate agrees that a normal resume fits and an enormous one does not', () => {
+  assert.equal(estimateLayout(sample(1)).fits, true);
+  assert.equal(estimateLayout(sample(40)).fits, false);
 });
 
 test('a short resume stays on one page at the largest size', () => {

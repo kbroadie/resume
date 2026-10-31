@@ -1,20 +1,22 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=29';
-import { buildPdf, docFromText } from './pdf.js?v=29';
+} from './lib.js?v=30';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=30';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=29';
-import { icon, hydrateIcons } from './icons.js?v=29';
+} from './ats.js?v=30';
+import { icon, hydrateIcons } from './icons.js?v=30';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=29';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=29';
-import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=29';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=29';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=29';
+} from './knowledge.js?v=30';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=30';
+import { cleanPosting } from './posting.js?v=30';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=30';
+import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=30';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=30';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=30';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -135,7 +137,8 @@ function showView(name, tab) {
   }
   document.body.dataset.view = name;
   $('inspector').hidden = !current || !['resume', 'compare'].includes(name);
-  if (tab && TABS.includes(tab)) inspectorTab = tab;
+  if (tab && TABS.includes(tab)) { inspectorTab = tab; if (!panels.insOpen) setPanel('ins', true); }
+  if (name === 'compare' && !panels.insOpen) { /* compare keeps the panel as the user left it */ }
   showTab(inspectorTab);
   $('main').scrollTop = 0;
   $('toast').hidden = true;
@@ -374,7 +377,7 @@ function updateLinkUi() {
 }
 
 function setPosting(text, source, extra = {}) {
-  posting = { text: String(text).trim(), source: text ? source : '', link: extra.link || '', title: extra.title || '', company: extra.company || '' };
+  posting = { text: cleanPosting(text), source: text ? source : '', link: extra.link || '', title: extra.title || '', company: extra.company || '' };
   if (text) $('gen-msg').textContent = '';
   renderPosting();
   saveDraft();
@@ -382,7 +385,7 @@ function setPosting(text, source, extra = {}) {
 
 // Accepts text from the clipboard. Returns true when it looks like a posting and was taken.
 function acceptPasted(raw) {
-  const text = String(raw || '').trim();
+  const text = cleanPosting(raw);
   $('paste-catch').value = '';
   if (text.length < 40) { toast('Too short'); return false; }
   setPosting(text, 'pasted');
@@ -473,7 +476,7 @@ function acceptResult(result, issues, opts, link, { replaceId = '', source = pos
   const known = sourceTextLookup(profile, { includePersonalLine: opts.includePersonalLine, knowledge });
   const entryData = {
     title: result.posting_title || '', company: result.company || '', link: link || '', location: locationLabel,
-    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: replaceId ? current.fit : null, citedIds: citedIdsOf(result),
+    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: replaceId ? current.fit : null, citedIds: citedIdsOf(result), deadline: replaceId ? current.deadline : checkDeadline(result, source.text) || findDeadline(source.text),
     postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
     postingText: (source.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
     generatedAt: new Date().toISOString(),
@@ -713,14 +716,44 @@ function loadEntry(entry) {
     id: entry.id, doc: entry.doc, generated, text: entry.text, edited: entry.text !== generated,
     title: entry.title, company: entry.company, link: entry.link, location: entry.location,
     issues: entry.issues || [], keywords: entry.keywords || { covered: [], missing: [] }, fit: entry.fit && typeof entry.fit === 'object' ? entry.fit : null, fitError: '',
-    postingKeywords: entry.postingKeywords || [], citedIds: entry.citedIds || [], suggestions: entry.suggestions || [],
+    postingKeywords: entry.postingKeywords || [], citedIds: entry.citedIds || [], deadline: entry.deadline === undefined ? findDeadline(entry.postingText || '') : entry.deadline, suggestions: entry.suggestions || [],
     unsupported: entry.unsupported || [],
     postingText: entry.postingText || '', summaryOptions: entry.summaryOptions || [], summaryOriginal: entry.summaryOriginal || ''
   };
+  if (entry.deadline === undefined) saveEntry({ deadline: current.deadline });
   renderCurrent();
 }
 
 const kwList = () => (current.postingKeywords.length ? current.postingKeywords : [...current.keywords.covered, ...current.keywords.missing]);
+
+// The deadline matters while the resume is still a draft. Once you have applied, or the posting is out of the
+// running, there is nothing left to do by that date, so it is not shown.
+const isOpen = (status) => !status || status === 'Drafted';
+
+function renderDeadline() {
+  const c = current;
+  const btn = $('deadline');
+  const status = history.find((e) => e.id === c.id)?.status;
+  if (!c.deadline || !isOpen(status)) { btn.hidden = true; return; }
+  const st = deadlineState(c.deadline.date);
+  btn.hidden = false;
+  btn.className = `stat stat-btn due ${st.tone}`;
+  btn.innerHTML = `${icon('calendar')}${esc(st.text)}`;
+  btn.title = `${c.deadline.quote}\nClick to add it to your calendar.`;
+}
+
+function downloadDeadline() {
+  const c = current;
+  if (!c?.deadline) return;
+  const title = `Apply: ${[c.title, c.company].filter(Boolean).join(', ') || 'job'}`;
+  const url = URL.createObjectURL(new Blob([icsFor({ date: c.deadline.date, title })], { type: 'text/calendar;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: `deadline-${c.deadline.date}.ics` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast('Calendar file saved');
+}
 
 function renderCurrent() {
   const c = current;
@@ -742,7 +775,10 @@ function renderCurrent() {
   renderRail();
 
   const stats = resumeStats(c.text);
-  $('stat-words').textContent = `${stats.words} words · ${stats.pages} pg`;
+  let est = null;
+  try { est = estimateLayout(c.edited ? docFromText(c.text) || c.doc : c.doc); } catch { /* the estimate is only a guide */ }
+  $('stat-words').textContent = est ? `${stats.words} words \u00b7 ${est.fits ? `1 page, ${est.size} pt` : `${est.pages} pages`}` : `${stats.words} words`;
+  $('stat-words').className = `stat${est && !est.fits ? ' warn' : ''}`;
   $('stat-edited').hidden = !c.edited;
   const checks = $('stat-checks');
   checks.innerHTML = `${icon(c.issues.length ? 'alert' : 'check')}${c.issues.length ? `${c.issues.length} check${c.issues.length === 1 ? '' : 's'} to review` : 'Checks passed'}`;
@@ -751,6 +787,7 @@ function renderCurrent() {
     ? c.issues.map((i) => `<li>${esc(i)}</li>`).join('')
     : '<li>No problems found. Every bullet cites verified library entries and uses only numbers from them.</li>';
   renderFit();
+  renderDeadline();
   renderRegenBanner();
   updateTitle();
 
@@ -994,7 +1031,7 @@ function openCompare(k = -1) {
 
 async function pastePostingIntoEntry() {
   try {
-    const text = (await navigator.clipboard.readText()).trim();
+    const text = cleanPosting(await navigator.clipboard.readText());
     if (text.length < 40) { toast('Too short'); return; }
     current.postingText = text.slice(0, 15000);
     saveEntry({ postingText: current.postingText });
@@ -1051,7 +1088,7 @@ async function makePdf() {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    toast(`PDF · ${out.pages} pg`);
+    toast(out.fits ? `PDF · 1 page · ${out.size} pt` : `PDF · ${out.pages} pages · too long`);
   } catch (err) {
     toast(`PDF failed: ${err.message}`);
   } finally {
@@ -1310,6 +1347,8 @@ const SHORTCUTS = [
   ['Ask for a change', '/'],
   ['Tailor, or send a change', `${MOD} Enter`],
   ['Paste a posting', `${MOD} V`],
+  ['Hide or show the list', `${MOD} B`],
+  ['Hide or show the panel', `${MOD} \\`],
   ['Copy resume', `${MOD} Shift C`],
   ['PDF', `${MOD} S`],
   ['Keys', '?']
@@ -1333,6 +1372,7 @@ function paletteCommands() {
       { group: 'Resume', label: 'PDF', hint: `${MOD} S`, run: () => $('pdf').click() },
       { group: 'Resume', label: 'TXT', run: download },
       { group: 'Resume', label: 'Compare', run: () => openCompare() },
+      ...(current.deadline ? [{ group: 'Resume', label: 'Deadline to calendar', run: downloadDeadline }] : []),
       { group: 'Resume', label: 'Rescore fit', run: () => { showView('resume', 'fit'); assessFit(); } }
     );
   }
@@ -1401,6 +1441,8 @@ function wireDesktop() {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
     const open = document.querySelector('dialog[open]');
     if (mod && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); if ($('palette').open) $('palette').close(); else openPalette(); return; }
+    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'b') { e.preventDefault(); togglePanel('rail'); return; }
+    if (mod && !e.altKey && e.key === '\\') { e.preventDefault(); togglePanel('ins'); return; }
     if (open) return;
     if (e.altKey && !mod && /^Digit[1-7]$/.test(e.code)) {
       e.preventDefault();
@@ -1435,7 +1477,93 @@ function wireDesktop() {
   });
 }
 
+/* ---------- resizable, collapsible side panels ---------- */
+
+const PANEL_STORE = 'resume-advisor-panels';
+const PANEL_LIMITS = { rail: [200, 420], ins: [288, 680] };
+const COLLAPSED_RAIL = 56;
+const panels = { rail: 248, railOpen: true, ins: 384, insOpen: true, ...store.json(PANEL_STORE, {}) };
+
+function applyPanels() {
+  const root = document.documentElement.style;
+  root.setProperty('--rail-w', `${panels.railOpen ? panels.rail : COLLAPSED_RAIL}px`);
+  root.setProperty('--ins-w', `${panels.ins}px`);
+  $('app').classList.toggle('rail-collapsed', !panels.railOpen);
+  $('app').classList.toggle('ins-collapsed', !panels.insOpen);
+  for (const b of document.querySelectorAll('[data-panel-toggle]')) {
+    const side = b.dataset.panelToggle;
+    const open = side === 'rail' ? panels.railOpen : panels.insOpen;
+    b.setAttribute('aria-expanded', String(open));
+    b.title = side === 'rail' ? (open ? 'Collapse the list' : 'Expand the list') : (open ? 'Hide the panel' : 'Show the panel');
+    b.setAttribute('aria-label', b.title);
+  }
+  for (const [id, side] of [['split-rail', 'rail'], ['split-ins', 'ins']]) {
+    const el = $(id);
+    const [min, max] = PANEL_LIMITS[side];
+    el.setAttribute('aria-valuemin', String(min));
+    el.setAttribute('aria-valuemax', String(max));
+    el.setAttribute('aria-valuenow', String(Math.round(panels[side])));
+  }
+}
+
+function savePanels() { store.set(PANEL_STORE, JSON.stringify(panels)); }
+
+function setPanel(side, open) {
+  panels[side === 'rail' ? 'railOpen' : 'insOpen'] = open;
+  applyPanels();
+  savePanels();
+}
+
+const togglePanel = (side) => setPanel(side, !(side === 'rail' ? panels.railOpen : panels.insOpen));
+
+function wirePanels() {
+  applyPanels();
+  for (const b of document.querySelectorAll('[data-panel-toggle]')) b.addEventListener('click', () => togglePanel(b.dataset.panelToggle));
+  for (const [id, side] of [['split-rail', 'rail'], ['split-ins', 'ins']]) {
+    const el = $(id);
+    const [min, max] = PANEL_LIMITS[side];
+    const open = () => (side === 'rail' ? panels.railOpen : panels.insOpen);
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+      document.body.classList.add('resizing');
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!el.hasPointerCapture(e.pointerId)) return;
+      const box = $('app').getBoundingClientRect();
+      const raw = side === 'rail' ? e.clientX - box.left : box.right - e.clientX;
+      if (raw < min - 60) { panels[side === 'rail' ? 'railOpen' : 'insOpen'] = false; }
+      else { panels[side === 'rail' ? 'railOpen' : 'insOpen'] = true; panels[side] = Math.max(min, Math.min(max, raw)); }
+      applyPanels();
+    });
+    const end = (e) => {
+      if (!el.hasPointerCapture(e.pointerId)) return;
+      el.releasePointerCapture(e.pointerId);
+      el.classList.remove('dragging');
+      document.body.classList.remove('resizing');
+      savePanels();
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('dblclick', () => togglePanel(side));
+    el.addEventListener('keydown', (e) => {
+      const step = e.shiftKey ? 48 : 16;
+      const dir = (side === 'rail' ? 1 : -1) * (e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0);
+      if (e.key === 'Enter') { e.preventDefault(); togglePanel(side); }
+      else if (dir) { e.preventDefault(); if (!open()) setPanel(side, true); panels[side] = Math.max(min, Math.min(max, panels[side] + dir * step)); applyPanels(); savePanels(); }
+    });
+  }
+}
+
 /* ---------- history ---------- */
+
+// A short due date for a draft whose deadline is near or past.
+function dueTag(e) {
+  if (!e.deadline || !isOpen(e.status)) return '';
+  const st = deadlineState(e.deadline.date);
+  return st.days > 14 ? '' : `<b class="due ${st.tone}">${st.days < 0 ? 'Closed' : st.label}</b>`;
+}
 
 function renderHistory() {
   renderRail();
@@ -1446,7 +1574,7 @@ function renderRail() {
   const dot = { Drafted: 'draft', Applied: 'applied', Interviewing: 'live', Offer: 'win', Rejected: 'out', Withdrawn: 'out' };
   $('history').innerHTML = history.map((e) => `<li data-id="${esc(e.id)}"${current && e.id === current.id && document.body.dataset.view === 'resume' ? ' aria-current="true"' : ''}>
     <button type="button" class="ritem" data-open><span class="dot ${dot[e.status] || 'draft'}" title="${esc(e.status || 'Drafted')}"></span>
-      <span class="ritem-text"><strong>${esc(e.title || 'Resume')}</strong><span>${esc(e.company || shortDate(e.at))}</span></span></button>
+      <span class="ritem-text"><strong>${esc(e.title || 'Resume')}</strong><span class="sub"><i class="co">${esc(e.company || shortDate(e.at))}</i>${dueTag(e)}</span></span></button>
     <button type="button" class="ritem-x" data-delete aria-label="Delete"><i data-icon="close"></i></button></li>`).join('');
   hydrateIcons($('history'));
 }
@@ -1471,6 +1599,7 @@ function onStatusChange() {
   history = updateEntry(history, current.id, { status: $('res-status').value });
   persistHistory();
   renderRail();
+  renderDeadline();
 }
 
 /* ---------- start-up ---------- */
@@ -1605,7 +1734,9 @@ async function init() {
   $('inspector').addEventListener('click', (e) => { const t = e.target.closest('[data-tab]'); if (t) showTab(t.dataset.tab); });
   $('res-status').innerHTML = STATUSES.map((x) => `<option>${x}</option>`).join('');
   $('res-status').addEventListener('change', onStatusChange);
+  $('deadline').addEventListener('click', downloadDeadline);
   wireDesktop();
+  wirePanels();
   $('open-compare-top').addEventListener('click', () => openCompare());
   $('open-compare').addEventListener('click', () => openCompare());
   $('kw-chips').addEventListener('click', (e) => { const b = e.target.closest('button[data-k]'); if (b) openCompare(Number(b.dataset.k)); });

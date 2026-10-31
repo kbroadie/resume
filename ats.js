@@ -1,7 +1,7 @@
 // Applicant tracking: how well the resume suits an automated reader, and rephrasing suggestions that stay inside
 // the library.
 
-import { keywordCoverage, splitProfile, yearsSince } from './lib.js?v=29';
+import { keywordCoverage, splitProfile, yearsSince } from './lib.js?v=30';
 
 /* ---------- the applicant tracking check ---------- */
 
@@ -24,7 +24,10 @@ export function atsLint({ text, doc, keywords = [], postingTitle = '' }) {
   add(badDates.length === 0, 'Dates are in one readable format', badDates.length ? `Check the dates for ${badDates.map((x) => x.title).slice(0, 2).join(' and ')}.` : 'Every job shows month and year in the same pattern.');
 
   const words = (text.match(/\S+/g) || []).length;
-  add(words >= 250 && words <= 1000, 'Length', words < 250 ? `Only ${words} words. Most postings expect more detail.` : words > 1000 ? `${words} words runs past two pages.` : `${words} words fits one or two pages.`);
+  add(words >= 200 && words <= 560, 'Length', words < 200 ? `Only ${words} words. Most postings expect more detail.` : words > 560 ? `${words} words is too long for one page.` : `${words} words fits one page.`);
+
+  const repeats = doc ? findRedundancy(doc) : [];
+  add(repeats.length === 0, 'No redundancy', repeats.length ? repeats.slice(0, 3).map((r) => r.text).join(' ') : 'Nothing is said twice.');
 
   const nonAscii = (text.match(/[^\x00-\x7F]/g) || []).length;
   add(nonAscii === 0, 'Plain characters in the text version', nonAscii ? `${nonAscii} special characters may not paste cleanly into old forms.` : 'No special characters to trip up a form.');
@@ -47,6 +50,43 @@ export function atsLint({ text, doc, keywords = [], postingTitle = '' }) {
       !tokens.length || hit.length >= Math.ceil(tokens.length / 2) ? 'The headline or summary uses the posting\'s own title words.' : `The posting says "${postingTitle}". Use its words in your headline only where it is true.`);
   }
   return checks;
+}
+
+/* ---------- redundancy ---------- */
+
+const content = (t) => new Set((String(t).toLowerCase().match(/[a-z0-9]+/g) || []).filter((w) => !STOP.has(w) && w.length > 2).map((w) => stem(w)));
+const overlap = (a, b) => {
+  const shared = [...a].filter((w) => b.has(w)).length;
+  return { shared, share: shared / Math.max(1, Math.min(a.size, b.size)) };
+};
+const firstWord = (t) => (String(t).toLowerCase().match(/[a-z]+/) || [''])[0];
+
+// Things said twice: two lines that are mostly the same words, the summary repeated in a bullet, the same opening
+// verb over and over in one job, and a skill listed under two headings.
+export function findRedundancy(doc) {
+  const out = [];
+  const lines = [];
+  if (doc.summary) lines.push({ where: 'the summary', text: doc.summary, bag: content(doc.summary) });
+  for (const x of doc.experience || []) for (const b of x.bullets) lines.push({ where: x.title, text: b, bag: content(b) });
+  const clip = (t) => (t.length > 48 ? `${t.slice(0, 45).trim()}...` : t);
+  for (let i = 0; i < lines.length; i += 1) {
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const { shared, share } = overlap(lines[i].bag, lines[j].bag);
+      if (shared >= 6 && share >= 0.6) out.push({ kind: 'similar', text: `"${clip(lines[i].text)}" (${lines[i].where}) and "${clip(lines[j].text)}" (${lines[j].where}) say nearly the same thing.` });
+    }
+  }
+  for (const x of doc.experience || []) {
+    const counts = new Map();
+    for (const b of x.bullets) counts.set(firstWord(b), (counts.get(firstWord(b)) || 0) + 1);
+    for (const [w, n] of counts) if (w && n >= 3) out.push({ kind: 'verb', text: `${n} bullets in ${x.title} begin with "${w}".` });
+  }
+  const seen = new Map();
+  for (const g of doc.skills || []) for (const item of g.items) {
+    const k = item.toLowerCase();
+    if (seen.has(k) && seen.get(k) !== g.category) out.push({ kind: 'skill', text: `${item} is listed under ${seen.get(k)} and ${g.category}.` });
+    seen.set(k, g.category);
+  }
+  return out;
 }
 
 /* ---------- rephrasing suggestions ---------- */

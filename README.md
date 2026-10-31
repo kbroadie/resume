@@ -9,9 +9,13 @@ Three areas: a **rail** on the left, the **stage** in the middle, and the **insp
 - **Rail:** New, then every resume you have tailored (a dot shows its status; hover for the delete button, which can be undone), Library, and the command, theme, and settings buttons.
 - **New:** paste the posting (Ctrl or Cmd + V anywhere on the page, the Paste button, or drop text or a text file onto the box). Pick a location and options, then Tailor (Ctrl or Cmd + Enter). Reading a posting from a link did not work reliably, so that field is hidden; set `LINK_READING` to `true` in `app.js` to bring it back.
 - **Resume (stage):** the draft, with Copy, TXT, PDF, Edit, Redo, and Compare. Each section and job has a small Copy button for one form field at a time. The status menu (Drafted, Applied, and so on) sits at the top. **Redo** rewrites the draft from the same posting, with optional notes and the short-titles and caregiver options; Undo in the toast brings the old draft back. When you save answers after a draft was written, a banner offers one-click Redo. The comment box under the draft takes a change request ("lead with grant writing"); Claude revises the draft on screen, keeping the rest and using only what the library supports.
+- **Posting cleanup:** a pasted posting is cleaned before it is used: button and link labels (Apply Now, Share, Save job, View More Jobs), cookie notices, navigation, repeated lines, hard line wraps, and extra blank lines are removed. Only whole lines that are known labels are dropped, never a sentence of the posting (`posting.js`).
+- **Deadlines:** Claude reports a closing date only when the posting states one, with the exact words; the app checks that the words are in the posting and contain that date, and also scans the posting itself (`deadline.js`). A draft shows "Due Nov 14 · 5 days" above the resume (amber within a week, red once closed) and in the list; click it to save an all-day calendar event with a reminder two days before. Once the status is Applied, Interviewing, Offer, Rejected, or Withdrawn, the deadline is no longer shown. "Open until filled" is not a deadline.
 - **Compare (stage):** the posting and the draft side by side, with each term marked as present or missing. Click a term to jump to it; Find asks for a rewrite of a missing one.
 - **Inspector tabs:** **Fit** (two scores, below), **Terms** (keyword coverage chips), **Edits** (keyword rewrites you can apply or skip, and the summary writer), **Checks** (the applicant tracking check), and **Ask** (the questions Claude has for you, one at a time).
 - **Library (stage):** add a fact, correction, or preference; see saved answers and open questions; merge saved answers into the master profile (you review every change first).
+
+The list and the panel are **resizable and collapsible**: drag the edge (or use the arrow keys on it; double-click or Enter collapses), use the panel buttons, or press Ctrl or Cmd + B for the list and Ctrl or Cmd + \\ for the panel. The sizes are remembered. The list collapses to an icon strip. Both side panels share one color.
 
 The window works with the keyboard: Ctrl or Cmd + K opens the commands, Alt or Option + 1 to 7 jump to New, Library, and the five inspector tabs, `/` asks for a change, Ctrl or Cmd + S saves the PDF, Ctrl or Cmd + Shift + C copies the resume, and `?` lists them all. The window title names the resume. Installed from the browser as an app, the title bar folds into the page where the browser supports it.
 
@@ -95,6 +99,12 @@ Settings > Pages > Deploy from a branch > `main` / root. The page is public, and
 - `data/knowledge.json`: saved answers (starts empty)
 - `data/profile.json`: the source of truth
 - `test/`: tests
+
+## The PDF
+
+US Letter, with 1 inch above and below and 1.5 inches at the sides (a 5.5 by 9 inch text area). The layout aims for **one page**: it sets the text at the largest size that fits, from 10.5 down to 7.5 points, and no text (headings, dates, contact line) is ever smaller than 7.5 points. If a resume will not fit even at 7.5 points with slightly tighter leading, it continues on a second page and the app says so; trim bullets instead of shrinking further. The count beside the resume ("1 page, 8.5 pt") is an estimate made without the fonts, and the PDF toast reports the real result. Claude is told to write 380 to 480 words (8 to 12 bullets) so the type stays comfortable.
+
+The Grant Review Panelist role never gets more than one bullet, whatever the library or the model offers. The Checks tab flags redundancy: two lines that say nearly the same thing, the summary repeated in a bullet, three or more bullets in one job opening with the same verb, or a skill listed under two headings; the tailoring prompt also forbids it.
 
 ## Typography
 

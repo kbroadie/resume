@@ -1,5 +1,5 @@
 // Pure functions shared by the browser app and the tests. No DOM access here.
-import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=29';
+import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=30';
 
 export const MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5 (default)' },
@@ -105,6 +105,10 @@ HARD RULES
 23. Keyword coverage matters. For every posting keyword the library supports, use the posting's own wording somewhere natural: in the summary, a skill, or a bullet you reword under rule 2. Choose bullets whose substance already fits and swap in the posting's term for a near-synonym ("grant writing" to "grant applications"). Aim to cover every supported keyword without stacking terms or repeating one. For a keyword the library cannot support, ask a "gap" question instead of stretching.
 
 24. If CURRENT_DRAFT is given, Kevin is asking for changes to it. Start from that draft: keep its structure, wording, and choices, and change only what USER_NOTES ask for, still following every rule above. If a request would need something the library does not say, do not do it; ask a question instead.
+25. The California Arts Council role (role_id "cac", Grant Review Panelist) gets at most one bullet, never more.
+26. The resume must fit one printed page with wide margins (a 5.5 by 9 inch text area, 7.5 point type at the smallest). Aim for 380 to 480 words in all, about 8 to 12 bullets. Leave out the least relevant bullets and older roles instead of padding; older or shorter roles keep one or two bullets.
+27. No redundancy. Do not say the same thing twice: no two bullets may restate each other, and a bullet must not repeat the summary. When two library bullets overlap, use the stronger one only. Do not begin more than two bullets of one role with the same verb.
+28. deadline_date and deadline_quote: if the posting states a closing date or application deadline, give the date as YYYY-MM-DD (use the posting's year; if none is shown, the next occurrence of that date) and copy the exact words that state it into deadline_quote. If it states no date ("open until filled", "rolling", nothing), leave both empty. Never guess a date.
 
 Respond only by calling submit_resume, exactly once. Do not write any text outside the tool call.`;
 
@@ -113,10 +117,12 @@ export const RESUME_TOOL = {
   description: 'Submit the tailored resume content, its sources, and questions for Kevin.',
   input_schema: {
     type: 'object',
-    required: ['posting_title', 'company', 'posting_keywords', 'suggestions', 'headline', 'summary', 'skills', 'experience', 'education_ids', 'certification_ids', 'affiliation_ids', 'questions'],
+    required: ['posting_title', 'company', 'posting_keywords', 'suggestions', 'headline', 'summary', 'skills', 'experience', 'education_ids', 'certification_ids', 'affiliation_ids', 'questions', 'deadline_date', 'deadline_quote'],
     properties: {
       posting_title: { type: 'string', description: 'The job title exactly as written in the posting, or an empty string.' },
       company: { type: 'string', description: 'The employer name exactly as written in the posting, or an empty string.' },
+      deadline_date: { type: 'string', description: 'The application deadline as YYYY-MM-DD, only if the posting states one. Otherwise an empty string.' },
+      deadline_quote: { type: 'string', description: 'The exact words of the posting that state the deadline. Empty if deadline_date is empty.' },
       posting_keywords: { type: 'array', items: { type: 'string' }, description: '8 to 15 of the posting\'s most important skills, tools, and terms, exactly as the posting words them.' },
       suggestions: {
         type: 'array',
@@ -212,7 +218,8 @@ export function buildRequest(profile, { posting, notes = '', draft = '', include
   const facts = {
     years_of_experience: yearsSince(profile.meta.career_start, now),
     career_start_year: Number(profile.meta.career_start.slice(0, 4)),
-    short_titles: shortTitles
+    short_titles: shortTitles,
+    today: now.toISOString().slice(0, 10)
   };
   const user = [
     '<POSTING>', posting.trim(), '</POSTING>',
@@ -299,6 +306,9 @@ export function validateResult(result, profile, { includePersonalLine = true, kn
 }
 
 // Turns the model's output plus the profile into a plain document structure.
+// Roles that never get more than this many bullets, whatever the library or the model offers.
+export const ROLE_BULLET_CAP = { cac: 1 };
+
 export function buildDoc(result, profile, { includePersonalLine = true, locationId = null, knowledge = null } = {}) {
   const { usable } = splitProfile(profile, { includePersonalLine, knowledge });
   const roleById = new Map(usable.roles.map((r) => [r.id, r]));
@@ -318,7 +328,7 @@ export function buildDoc(result, profile, { includePersonalLine = true, location
       org: role.org,
       location: role.location,
       dates: dateRange(role.start, role.end),
-      bullets: (exp.bullets || []).map((b) => b.text)
+      bullets: (exp.bullets || []).map((b) => b.text).slice(0, ROLE_BULLET_CAP[exp.role_id] ?? Infinity)
     });
   }
   for (const p of usable.personal_lines) entries.push({ sort: p.start, title: p.title, org: null, location: null, dates: dateRange(p.start, p.end), bullets: [] });
