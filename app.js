@@ -1,22 +1,23 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=30';
-import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=30';
+} from './lib.js?v=31';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=31';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=30';
-import { icon, hydrateIcons } from './icons.js?v=30';
+} from './ats.js?v=31';
+import { icon, hydrateIcons } from './icons.js?v=31';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=30';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=30';
-import { cleanPosting, postingUrl, siteOf } from './posting.js?v=30';
-import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=30';
-import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=30';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=30';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=30';
+} from './knowledge.js?v=31';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=31';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=31';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=31';
+import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=31';
+import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=31';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=31';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=31';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -126,16 +127,15 @@ function showView(name, tab) {
   if (name === 'improve') { name = 'resume'; tab = tab || 'fit'; }
   if (name === 'questions') { name = 'resume'; tab = tab || 'questions'; }
   if (!current && (name === 'resume' || name === 'compare')) name = 'tailor';
+  if (name === 'posting' && !postingById(postingId)) name = 'tailor';
   if (name !== 'compare') lastView = name;
   for (const v of document.querySelectorAll('.view')) v.hidden = v.dataset.view !== name;
   for (const t of document.querySelectorAll('#tabbar [data-view]')) {
     const on = t.dataset.view === name;
     if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
   }
-  for (const li of document.querySelectorAll('#history [data-id]')) {
-    if (name === 'resume' && current && li.dataset.id === current.id) li.setAttribute('aria-current', 'true'); else li.removeAttribute('aria-current');
-  }
   document.body.dataset.view = name;
+  renderRailMarks();
   $('inspector').hidden = !current || !['resume', 'compare'].includes(name);
   if (tab && TABS.includes(tab)) { inspectorTab = tab; if (!panels.insOpen) setPanel('ins', true); }
   if (name === 'compare' && !panels.insOpen) { /* compare keeps the panel as the user left it */ }
@@ -326,84 +326,112 @@ function renderBadges() {
   renderRegenBanner();
 }
 
-/* ---------- the posting: pasted from the clipboard (reading from a link is switched off for now) ---------- */
+/* ---------- postings: import, clean, format, keep ---------- */
 
 // A posting can be read from its link (Anthropic's web fetch) when the page carries its text; pages built with
 // scripts cannot be read, and pasting the text is the fallback. Set this to false to hide the link field.
 const LINK_READING = true;
+const POSTINGS_STORE = 'resume-advisor-postings';
+const POSTINGS_CAP = 60;
 
-// The posting is never edited on this page. It is accepted from the clipboard (or read from a link, when that is on),
-// and the page only shows that it arrived. View shows the text read-only.
-let posting = { text: '', source: '', link: '', title: '', company: '' };   // source: 'link' | 'pasted' | ''
+let postings = [];          // newest first
+let postingId = '';         // the posting on screen
+let importing = false;
+
+const postingById = (id) => postings.find((p) => p.id === id);
+const postingResumes = (id) => history.filter((e) => e.postingId === id);
+
+function persistPostings() {
+  while (!store.set(POSTINGS_STORE, JSON.stringify(postings))) {
+    // Out of room: the cleaned copy is only for formatting again, so drop it from the oldest posting first.
+    const old = [...postings].reverse().find((p) => p.cleaned);
+    if (!old) { toast('Storage full'); return; }
+    delete old.cleaned;
+  }
+}
 
 function saveDraft() {
-  store.set(DRAFT_STORE, JSON.stringify({
-    applink: $('applink').value, posting, notes: $('notes').value,
-    shorttitles: $('shorttitles').checked, personal: $('personal').checked
-  }));
+  store.set(DRAFT_STORE, JSON.stringify({ applink: $('applink').value, shorttitles: $('shorttitles').checked, personal: $('personal').checked }));
 }
 
 function restoreDraft() {
   const d = store.json(DRAFT_STORE, null);
   if (d) {
     $('applink').value = LINK_READING ? d.applink || '' : '';
-    if (d.posting?.text) posting = { text: '', source: '', link: '', title: '', company: '', ...d.posting };
-    $('notes').value = d.notes || '';
     $('shorttitles').checked = Boolean(d.shorttitles);
     $('personal').checked = d.personal !== false;
-    if (d.notes) setNotesOpen(true);
-  }
-  renderPosting();
-}
-
-function renderPosting() {
-  const has = Boolean(posting.text);
-  $('paste-empty').hidden = has;
-  $('paste-done').hidden = !has;
-  if (has) {
-    const n = wordCount(posting.text);
-    $('posting-summary').textContent = `${n.toLocaleString('en-US')} words`;
-    $('posting-preview').textContent = posting.text.split('\n').map((l) => l.trim()).find((l) => l.length > 3)?.slice(0, 140) || '';
   }
   updateLinkUi();
 }
 
 function updateLinkUi() {
-  const linkOk = Boolean(normalizeUrl($('applink').value));
-  $('fetch').hidden = !linkOk || Boolean(posting.text);
+  $('fetch').hidden = !normalizeUrl($('applink').value);
 }
 
-function setPosting(text, source, extra = {}) {
-  posting = { text: cleanPosting(text), source: text ? source : '', link: extra.link || '', title: extra.title || '', company: extra.company || '' };
-  if (text) $('gen-msg').textContent = '';
-  renderPosting();
-  saveDraft();
+const importMsg = (text) => { $('gen-msg').textContent = text; };
+
+function setImporting(on) {
+  importing = on;
+  $('paste-empty').classList.toggle('busy', on);
+  $('paste').disabled = on;
+  $('paste-catch').disabled = on;
 }
 
-// Accepts text from the clipboard. Returns true when it looks like a posting and was taken.
-function acceptPasted(raw) {
-  // A pasted web address is the posting's link: keep it, and read the posting from it unless the text is already here.
-  const url = postingUrl(raw);
-  if (url) {
-    $('paste-catch').value = '';
-    $('applink').value = url;
+const newId = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+
+function makePosting(s, cleaned, { link, source, by }) {
+  const p = {
+    id: newId('p'), at: new Date().toISOString(), title: s.title || 'Job posting', company: s.company, location: s.location, jobType: s.jobType, pay: s.pay,
+    reference: s.reference, deadline: s.deadline || null, link: link || '', source, by, sections: s.sections, cleaned
+  };
+  p.text = renderPostingText(p);
+  return p;
+}
+
+// Sorts the cleaned posting into the fixed structure: Claude files it (copying only), and if that fails the plain
+// sorter does it, so an import always succeeds.
+async function structurePosting(cleaned) {
+  try {
+    const out = checkStructure(await askClaude(buildFormatRequest(cleaned), 'file_posting'), cleaned);
+    if (out.sections.length) return { s: out, by: 'claude' };
+  } catch { /* fall back */ }
+  return { s: structureLocal(cleaned), by: 'local' };
+}
+
+// The whole import: clean, file, keep, and open it.
+async function importPosting(raw, { link = '', source = 'pasted' } = {}) {
+  if (importing) return false;
+  const cleaned = cleanPosting(raw);
+  if (cleaned.length < 40) { toast('Too short'); return false; }
+  const twin = postings.find((p) => (link && p.link === link) || p.cleaned === cleaned);
+  if (twin) { openPosting(twin.id); toast('Already imported'); return true; }
+  setImporting(true);
+  try {
+    importMsg('Formatting…');
+    const { s: structured, by } = await structurePosting(cleaned);
+    const p = makePosting(structured, cleaned, { link: link || normalizeUrl($('applink').value) || '', source, by });
+    postings = [p, ...postings].slice(0, POSTINGS_CAP);
+    persistPostings();
+    importMsg('');
+    $('applink').value = '';
     saveDraft();
     updateLinkUi();
-    if (!posting.text) readLinkNow(); else toast('Link added');
+    renderRail();
+    openPosting(p.id);
+    toast(by === 'claude' ? 'Imported' : 'Imported, basic format');
     return true;
+  } finally {
+    setImporting(false);
   }
-  const text = cleanPosting(raw);
-  $('paste-catch').value = '';
-  if (text.length < 40) { toast('Too short'); return false; }
-  setPosting(text, 'pasted');
-  toast('Added');
-  return true;
 }
 
-function setNotesOpen(open) {
-  $('notes-field').hidden = !open;
-  $('toggle-notes').setAttribute('aria-expanded', String(open));
-  $('toggle-notes').classList.toggle('on', open);
+// Accepts text or a web address from the clipboard, a drop, or the box.
+function acceptPasted(raw) {
+  $('paste-catch').value = '';
+  const url = postingUrl(raw);
+  if (url) { $('applink').value = url; saveDraft(); updateLinkUi(); readLinkNow(); return true; }
+  importPosting(raw, { source: 'pasted' });
+  return true;
 }
 
 /* ---------- reading a posting from its link ---------- */
@@ -426,58 +454,176 @@ const fetchHint = (message) => (/web.?fetch|not enabled|permission/i.test(messag
   ? `${sentence(message)} Web fetch must be allowed for your Anthropic organization. Paste the text instead.`
   : `${sentence(message)} Paste the text instead.`);
 
-// Reads the posting from the link and stores it. Returns true when the posting text is now held.
-async function fillPostingFromLink(link, msg) {
-  msg.textContent = 'Reading…';
+async function readLinkNow() {
+  const link = normalizeUrl($('applink').value);
+  if (!link || importing) return;
+  $('applink').value = link;
+  saveDraft();
+  setBusy($('fetch'), true, 'Reading…');
+  $('fetch').hidden = false;
+  importMsg('Reading…');
   try {
     const got = await readPostingFromLink(link);
-    if (!got.ok) { msg.textContent = fetchHint(`Could not read the page: ${got.problem}`); $('paste-catch').focus(); return false; }
-    setPosting(got.text, 'link', { link, title: got.title, company: got.company });
-    toast('Read');
-    return true;
+    if (!got.ok) { importMsg(fetchHint(`Could not read the page: ${got.problem}`)); $('paste-catch').focus(); return; }
+    await importPosting(got.text, { link, source: 'link' });
   } catch (err) {
-    msg.textContent = fetchHint(`Could not read the page: ${err.message}`);
+    importMsg(fetchHint(`Could not read the page: ${err.message}`));
     $('paste-catch').focus();
-    return false;
+  } finally {
+    setBusy($('fetch'), false);
+    updateLinkUi();
   }
 }
 
-async function readLinkNow() {
-  const link = normalizeUrl($('applink').value);
-  if (!link) return;
-  $('applink').value = link;
-  saveDraft();
-  setBusy($('fetch'), true, 'Reading\u2026');
-  $('fetch').hidden = false;
-  try { await fillPostingFromLink(link, $('gen-msg')); } finally { setBusy($('fetch'), false); updateLinkUi(); }
+/* ---------- the posting on screen ---------- */
+
+function openPosting(id) {
+  if (!postingById(id)) return;
+  postingId = id;
+  renderPostingView();
+  showView('posting');
 }
 
-/* ---------- tailoring ---------- */
+function renderPostingView() {
+  const p = postingById(postingId);
+  if (!p) return;
+  $('pst-title').textContent = p.title;
+  $('pst-sub').textContent = [p.company, p.location].filter(Boolean).join(' · ');
+  const site = p.link ? siteOf(p.link) : null;
+  $('pst-link').hidden = !site;
+  if (site) { $('pst-link').href = p.link; $('pst-host').textContent = site.host; $('pst-logo').innerHTML = siteLogo(site, 18); }
+  const resumes = postingResumes(p.id);
+  const open = resumes.every((r) => isOpen(r.status));
+  const chip = $('pst-deadline');
+  if (p.deadline && open) {
+    const st = deadlineState(p.deadline.date);
+    chip.hidden = false;
+    chip.className = `stat stat-btn due ${st.tone}`;
+    chip.innerHTML = `${icon('calendar')}${esc(st.text)}`;
+    chip.title = `${p.deadline.quote}\nClick to add it to your calendar.`;
+  } else chip.hidden = true;
+
+  const facts = [p.jobType, p.pay, p.reference && `Ref ${p.reference}`].filter(Boolean);
+  const specs = KINDS.reduce((m, k) => m.set(k.kind, k), new Map());
+  $('pst-body').innerHTML = `${facts.length ? `<p class="pst-facts">${facts.map((f) => `<span>${esc(f)}</span>`).join('')}</p>` : ''}
+    ${p.sections.map((sec) => {
+      const spec = specs.get(sec.kind);
+      return `<section class="pst-sec"><h3>${esc(spec.heading)}</h3>${spec.bullets
+        ? `<ul>${sec.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`
+        : sec.items.map((i) => `<p>${esc(i)}</p>`).join('')}</section>`;
+    }).join('')}
+    <p class="pst-foot">${wordCount(p.text).toLocaleString('en-US')} words · ${p.by === 'claude' ? 'Filed by Claude' : 'Basic format'}</p>`;
+
+  const box = $('pst-resumes');
+  box.hidden = resumes.length === 0;
+  box.innerHTML = resumes.length ? `<h3>Resumes</h3><ul class="pst-cards">${resumes.map((r) => {
+    const sc = r.fit?.requirements?.length ? fitScores(r.fit.requirements, r.text, r.text === (r.originalText || r.text) ? new Set(r.citedIds || []) : null) : null;
+    return `<li data-id="${esc(r.id)}"><button type="button" class="pst-card" data-open-resume><span class="dot ${statusDot(r.status)}"></span>
+      <span class="pst-card-text"><strong>${esc(r.location || 'Resume')}</strong><span>${esc(shortDate(r.at))} · ${esc(r.status || 'Drafted')}</span></span>
+      ${sc ? `<span class="pst-scores"><b>${sc.library}</b><b>${sc.draft}</b></span>` : ''}</button></li>`;
+  }).join('')}</ul>` : '';
+}
+
+function downloadDeadlineFor(deadline, title) {
+  if (!deadline) return;
+  const url = URL.createObjectURL(new Blob([icsFor({ date: deadline.date, title })], { type: 'text/calendar;charset=utf-8' }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: `deadline-${deadline.date}.ics` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast('Calendar file saved');
+}
+
+async function reformatPosting() {
+  const p = postingById(postingId);
+  if (!p?.cleaned) { toast('Nothing to format again'); return; }
+  setBusy($('pst-reformat'), true, '…');
+  try {
+    const { s, by } = await structurePosting(p.cleaned);
+    Object.assign(p, { title: s.title || p.title, company: s.company, location: s.location, jobType: s.jobType, pay: s.pay, reference: s.reference, deadline: s.deadline || null, sections: s.sections, by });
+    p.text = renderPostingText(p);
+    persistPostings();
+    renderRail();
+    renderPostingView();
+    toast(by === 'claude' ? 'Formatted' : 'Basic format');
+  } finally {
+    setBusy($('pst-reformat'), false);
+  }
+}
+
+function deletePosting() {
+  const p = postingById(postingId);
+  if (!p) return;
+  const before = { postings, history, current };
+  postings = postings.filter((x) => x.id !== p.id);
+  history = history.filter((e) => e.postingId !== p.id);
+  persistPostings();
+  persistHistory();
+  if (current?.postingId === p.id) current = null;
+  postingId = '';
+  renderRail();
+  showView('tailor');
+  toast('Deleted', { label: 'Undo', run: () => { ({ postings, history } = before); current = before.current; persistPostings(); persistHistory(); renderRail(); openPosting(p.id); } });
+}
+
+// Resumes made before postings were kept as their own records each get a posting of their own.
+function migratePostings() {
+  let changed = false;
+  const byText = new Map();
+  for (const e of history) {
+    if (e.postingId && postingById(e.postingId)) continue;
+    const raw = e.postingText || '';
+    if (!raw) continue;
+    const cleaned = cleanPosting(raw);
+    let p = byText.get(cleaned);
+    if (!p) {
+      const s = structureLocal(cleaned);
+      p = makePosting({ ...s, title: e.title || s.title, company: e.company || s.company, location: s.location || '', deadline: e.deadline ?? s.deadline }, cleaned, { link: e.link || '', source: 'pasted', by: 'local' });
+      p.at = e.at;
+      postings.push(p);
+      byText.set(cleaned, p);
+    }
+    e.postingId = p.id;
+    delete e.postingText;
+    changed = true;
+  }
+  if (changed) {
+    postings.sort((a, b) => (a.at < b.at ? 1 : -1));
+    persistPostings();
+    persistHistory();
+  }
+}
+
+/* ---------- building a resume from the posting on screen ---------- */
+
+function setNotesOpen(open) {
+  $('notes-field').hidden = !open;
+  $('toggle-notes').setAttribute('aria-expanded', String(open));
+  $('toggle-notes').classList.toggle('on', open);
+}
 
 async function generate(event) {
   event.preventDefault();
-  const msg = $('gen-msg');
+  const msg = $('pst-msg');
   msg.textContent = '';
-  const rawLink = LINK_READING ? $('applink').value.trim() : '';
-  const link = normalizeUrl(rawLink);
-  if (rawLink && !link) { msg.textContent = 'Not a link'; $('applink').focus(); return; }
-  if (link) $('applink').value = link;
-  if (!posting.text && !link) { msg.textContent = 'Paste a posting'; $('paste').focus(); return; }
+  const p = postingById(postingId);
+  if (!p) return;
   if (!$('location').value) { msg.textContent = 'Choose a location'; $('location').focus(); return; }
 
   const opts = { includePersonalLine: $('personal').checked, locationId: $('location').value, shortTitles: $('shorttitles').checked };
   store.set(LOCATION_STORE, opts.locationId);
-  setBusy($('go'), true, 'Working...');
+  saveDraft();
+  setBusy($('go'), true, 'Working…');
   try {
-    // No pasted text: read the posting from the link first.
-    if (!posting.text && !(await fillPostingFromLink(link, msg))) return;
-    saveDraft();
-    const req = buildRequest(profile, { posting: posting.text, notes: $('notes').value, knowledge, ...opts });
-    msg.textContent = 'Tailoring… about 40 seconds';
+    const req = buildRequest(profile, { posting: p.text, notes: $('notes').value, knowledge, ...opts });
+    msg.textContent = 'Building… about 40 seconds';
     const input = await askClaude(req, 'submit_resume');
     const issues = validateResult(input, profile, { ...opts, knowledge });
-    acceptResult(input, issues, opts, link, { notes: $('notes').value });
+    acceptResult(input, issues, opts, p.link, { notes: $('notes').value, source: { text: p.text, deadline: p.deadline, postingId: p.id, title: p.title, company: p.company } });
     msg.textContent = '';
+    $('notes').value = '';
+    setNotesOpen(false);
   } catch (err) {
     msg.textContent = err.message;
   } finally {
@@ -486,16 +632,16 @@ async function generate(event) {
 }
 
 // replaceId: regenerate this history entry in place instead of adding a new one. source: where the posting came from.
-function acceptResult(result, issues, opts, link, { replaceId = '', source = posting, notes = '' } = {}) {
+function acceptResult(result, issues, opts, link, { replaceId = '', source, notes = '' } = {}) {
   const doc = buildDoc(result, profile, { ...opts, knowledge });
   const text = renderText(doc);
   const locationLabel = profile.contact.locations.find((l) => l.id === opts.locationId)?.label || '';
   const known = sourceTextLookup(profile, { includePersonalLine: opts.includePersonalLine, knowledge });
   const entryData = {
-    title: result.posting_title || '', company: result.company || '', link: link || '', location: locationLabel,
-    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: replaceId ? current.fit : null, citedIds: citedIdsOf(result), deadline: replaceId ? current.deadline : checkDeadline(result, source.text) || findDeadline(source.text),
+    title: source.title || result.posting_title || '', company: source.company || result.company || '', link: link || '', postingId: replaceId ? current.postingId : source.postingId, location: locationLabel,
+    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: replaceId ? current.fit : null, citedIds: citedIdsOf(result), deadline: replaceId ? current.deadline : source.deadline !== undefined ? source.deadline : checkDeadline(result, source.text) || findDeadline(source.text),
     postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
-    postingText: (source.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
+    postingText: (replaceId ? current.postingId : source.postingId) ? '' : (source.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
     generatedAt: new Date().toISOString(),
     opts: { locationId: opts.locationId, shortTitles: Boolean(opts.shortTitles), includePersonalLine: opts.includePersonalLine !== false }, notes
   };
@@ -675,7 +821,7 @@ async function regenerate({ comment = '' } = {}) {
   const baseNotes = sheet ? $('regen-notes').value.trim() : prior?.notes || '';
   const notes = comment ? `${baseNotes}\n${comment}`.trim() : baseNotes;
   const snapshot = prior ? { ...prior } : null;
-  const source = { text: current.postingText };
+  const source = { text: current.postingText, title: current.title, company: current.company, postingId: current.postingId };
   regenerating = true;
   if (sheet) setBusy($('regen-go'), true, 'Writing a new draft...');
   $('regen').setAttribute('aria-busy', 'true');
@@ -735,7 +881,7 @@ function loadEntry(entry) {
     issues: entry.issues || [], keywords: entry.keywords || { covered: [], missing: [] }, fit: entry.fit && typeof entry.fit === 'object' ? entry.fit : null, fitError: '',
     postingKeywords: entry.postingKeywords || [], citedIds: entry.citedIds || [], deadline: entry.deadline === undefined ? findDeadline(entry.postingText || '') : entry.deadline, suggestions: entry.suggestions || [],
     unsupported: entry.unsupported || [],
-    postingText: entry.postingText || '', summaryOptions: entry.summaryOptions || [], summaryOriginal: entry.summaryOriginal || ''
+    postingId: entry.postingId || '', postingText: postingById(entry.postingId)?.text || entry.postingText || '', summaryOptions: entry.summaryOptions || [], summaryOriginal: entry.summaryOriginal || ''
   };
   if (entry.deadline === undefined) saveEntry({ deadline: current.deadline });
   renderCurrent();
@@ -1348,15 +1494,15 @@ async function teach() {
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const MOD = IS_MAC ? '⌘' : 'Ctrl';
 const ALT = IS_MAC ? '⌥' : 'Alt';
-const VIEW_NAMES = { tailor: 'New', resume: 'Resume', compare: 'Compare', library: 'Library' };
+const VIEW_NAMES = { tailor: 'Import', posting: 'Posting', resume: 'Resume', compare: 'Compare', library: 'Library' };
 // Alt + number: the stage, then the inspector tabs.
-const NAV = [['view', 'tailor', 'New'], ['view', 'library', 'Library'], ['tab', 'fit', 'Fit'], ['tab', 'terms', 'Terms'], ['tab', 'edits', 'Edits'], ['tab', 'checks', 'Checks'], ['tab', 'questions', 'Ask']];
+const NAV = [['view', 'tailor', 'Import'], ['view', 'library', 'Library'], ['tab', 'fit', 'Fit'], ['tab', 'terms', 'Terms'], ['tab', 'edits', 'Edits'], ['tab', 'checks', 'Checks'], ['tab', 'questions', 'Ask']];
 
 // The window title names the resume you are in.
 function updateTitle() {
   const view = document.querySelector('.view:not([hidden])')?.dataset.view;
   if (!view || $('app').hidden) { document.title = 'Resume Advisor'; return; }
-  const about = current && ['resume', 'compare'].includes(view) ? [current.title, current.company].filter(Boolean).join(' at ') : '';
+  const about = view === 'posting' ? postingById(postingId)?.title || '' : current && ['resume', 'compare'].includes(view) ? [current.title, current.company].filter(Boolean).join(' at ') : '';
   document.title = `${about || VIEW_NAMES[view] || ''} \u00b7 Resume Advisor`;
 }
 
@@ -1393,7 +1539,7 @@ function paletteCommands() {
       { group: 'Resume', label: 'PDF', hint: `${MOD} S`, run: () => $('pdf').click() },
       { group: 'Resume', label: 'TXT', run: download },
       { group: 'Resume', label: 'Compare', run: () => openCompare() },
-      { group: 'Resume', label: 'Posting link', run: openLinkDialog },
+      { group: 'Resume', label: 'Posting link', run: () => openLinkDialog('resume') },
       ...(current.deadline ? [{ group: 'Resume', label: 'Deadline to calendar', run: downloadDeadline }] : []),
       { group: 'Resume', label: 'Rescore fit', run: () => { showView('resume', 'fit'); assessFit(); } }
     );
@@ -1403,7 +1549,8 @@ function paletteCommands() {
     { group: 'App', label: 'Settings', run: () => showDialog('settings-dialog') },
     { group: 'App', label: 'Keys', hint: '?', run: showKeys }
   );
-  for (const e of history.slice(0, 20)) list.push({ group: 'Open', label: historyLabel(e), hint: shortDate(e.at), run: () => { loadEntry(e); setQuestions([]); showView('resume'); } });
+  for (const p of postings.slice(0, 20)) list.push({ group: 'Postings', label: [p.title, p.company].filter(Boolean).join(' at '), hint: shortDate(p.at), run: () => openPosting(p.id) });
+  for (const e of history.slice(0, 20)) list.push({ group: 'Resumes', label: historyLabel(e), hint: shortDate(e.at), run: () => { loadEntry(e); setQuestions([]); showView('resume'); } });
   return list;
 }
 
@@ -1580,9 +1727,13 @@ function wirePanels() {
 
 /* ---------- the posting link ---------- */
 
-function openLinkDialog() {
-  if (!current) return;
-  $('link-input').value = current.link || '';
+let linkTarget = 'resume';
+
+function openLinkDialog(target = 'resume') {
+  linkTarget = target;
+  const holder = target === 'posting' ? postingById(postingId) : current;
+  if (!holder) return;
+  $('link-input').value = holder.link || '';
   $('link-msg').textContent = '';
   showDialog('link-dialog');
   $('link-input').focus();
@@ -1592,11 +1743,21 @@ function saveLink(raw) {
   const text = String(raw || '').trim();
   const link = text ? normalizeUrl(text) : '';
   if (text && !link) { $('link-msg').textContent = 'Not a link'; return; }
-  current.link = link || '';
-  saveEntry({ link: current.link });
+  if (linkTarget === 'posting') {
+    const p = postingById(postingId);
+    p.link = link || '';
+    for (const e of postingResumes(p.id)) { history = updateEntry(history, e.id, { link: p.link }); if (current?.id === e.id) current.link = p.link; }
+    persistPostings();
+    persistHistory();
+    renderRail();
+    renderPostingView();
+  } else {
+    current.link = link || '';
+    saveEntry({ link: current.link });
+    renderCurrent();
+    renderRail();
+  }
   $('link-dialog').close();
-  renderCurrent();
-  renderRail();
   toast(link ? 'Link saved' : 'Link removed');
 }
 
@@ -1619,40 +1780,67 @@ document.addEventListener('error', (e) => {
 const siteLogo = (site, px = 20) => `<img class="site-img" src="${esc(site.origin)}/favicon.ico" alt="" width="${px}" height="${px}" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-letter="${esc(site.letter)}" data-host="${esc(new URL(site.origin).hostname)}">`;
 const letterTile = (letter) => `<span class="site-letter" aria-hidden="true">${esc(letter)}</span>`;
 
-// A short due date for a draft whose deadline is near or past.
-function dueTag(e) {
-  if (!e.deadline || !isOpen(e.status)) return '';
-  const st = deadlineState(e.deadline.date);
+// A short due date for a posting that is near or past its deadline and has no resume sent yet.
+function dueTag(p) {
+  if (!p.deadline || !postingResumes(p.id).every((r) => isOpen(r.status))) return '';
+  const st = deadlineState(p.deadline.date);
   return st.days > 14 ? '' : `<b class="due ${st.tone}">${st.days < 0 ? 'Closed' : st.label}</b>`;
 }
+
+const statusDot = (status) => ({ Drafted: 'draft', Applied: 'applied', Interviewing: 'live', Offer: 'win', Rejected: 'out', Withdrawn: 'out' }[status] || 'draft');
 
 function renderHistory() {
   renderRail();
 }
 
-// The list of resumes in the left rail. The open one is marked; status shows as a dot.
+// The rail: each posting, and under it the resumes built from it. The open one is marked.
 function renderRail() {
-  const dot = { Drafted: 'draft', Applied: 'applied', Interviewing: 'live', Offer: 'win', Rejected: 'out', Withdrawn: 'out' };
-  $('history').innerHTML = history.map((e) => `<li data-id="${esc(e.id)}"${current && e.id === current.id && document.body.dataset.view === 'resume' ? ' aria-current="true"' : ''}>
-    <button type="button" class="ritem" data-open><span class="site" aria-hidden="true">${(() => { const st = e.link && siteOf(e.link); return st ? siteLogo(st, 20) : letterTile((e.company || e.title || '?')[0].toUpperCase()); })()}</span>
-      <span class="ritem-text"><strong>${esc(e.title || 'Resume')}</strong><span class="sub"><i class="co">${esc(e.company || shortDate(e.at))}</i>${dueTag(e)}</span></span><span class="dot ${dot[e.status] || 'draft'}" title="${esc(e.status || 'Drafted')}"></span></button>
-    <button type="button" class="ritem-x" data-delete aria-label="Delete"><i data-icon="close"></i></button></li>`).join('');
+  $('history').innerHTML = postings.map((p) => {
+    const site = p.link && siteOf(p.link);
+    const logo = site ? siteLogo(site, 20) : letterTile((p.company || p.title || '?')[0].toUpperCase());
+    const resumes = postingResumes(p.id);
+    return `<li class="rpost" data-posting="${esc(p.id)}">
+      <button type="button" class="ritem" data-open-posting><span class="site" aria-hidden="true">${logo}</span>
+        <span class="ritem-text"><strong>${esc(p.title)}</strong><span class="sub"><i class="co">${esc(p.company || shortDate(p.at))}</i>${dueTag(p)}</span></span></button>
+      <button type="button" class="ritem-x" data-delete-posting aria-label="Delete the posting"><i data-icon="close"></i></button>
+      ${resumes.length ? `<ul class="rsub">${resumes.map((e) => `<li data-id="${esc(e.id)}"><button type="button" class="rres" data-open><span class="dot ${statusDot(e.status)}" title="${esc(e.status || 'Drafted')}"></span><span>Resume · ${esc(shortDate(e.at))}</span></button>
+        <button type="button" class="ritem-x" data-delete aria-label="Delete"><i data-icon="close"></i></button></li>`).join('')}</ul>` : ''}</li>`;
+  }).join('');
   hydrateIcons($('history'));
+  renderRailMarks();
+}
+
+function renderRailMarks() {
+  const view = document.body.dataset.view;
+  for (const li of document.querySelectorAll('#history li[data-posting]')) {
+    const on = view === 'posting' && li.dataset.posting === postingId;
+    if (on) li.setAttribute('aria-current', 'true'); else li.removeAttribute('aria-current');
+  }
+  for (const li of document.querySelectorAll('#history li[data-id]')) {
+    const on = (view === 'resume' || view === 'compare') && current && li.dataset.id === current.id;
+    if (on) li.setAttribute('aria-current', 'true'); else li.removeAttribute('aria-current');
+  }
 }
 
 function onHistoryClick(event) {
-  const li = event.target.closest('li[data-id]');
-  if (!li) return;
-  const entry = history.find((e) => e.id === li.dataset.id);
-  if (!entry) return;
-  if (event.target.closest('[data-delete]')) {
-    const snapshot = history;
-    history = removeHistory(history, entry.id);
-    persistHistory();
-    if (current?.id === entry.id) { current = null; showView('tailor'); }
-    renderHistory();
-    toast('Deleted', { label: 'Undo', run: () => { history = snapshot; persistHistory(); renderHistory(); } });
-  } else if (event.target.closest('[data-open]')) { loadEntry(entry); setQuestions([]); showView('resume'); }
+  const post = event.target.closest('li[data-posting]');
+  const row = event.target.closest('li[data-id]');
+  if (row) {
+    const entry = history.find((e) => e.id === row.dataset.id);
+    if (!entry) return;
+    if (event.target.closest('[data-delete]')) {
+      const snapshot = history;
+      history = removeHistory(history, entry.id);
+      persistHistory();
+      if (current?.id === entry.id) { current = null; showView(postingById(entry.postingId) ? 'posting' : 'tailor'); if (postingById(entry.postingId)) { postingId = entry.postingId; renderPostingView(); } }
+      renderHistory();
+      toast('Deleted', { label: 'Undo', run: () => { history = snapshot; persistHistory(); renderHistory(); } });
+    } else { loadEntry(entry); setQuestions([]); showView('resume'); }
+    return;
+  }
+  if (!post) return;
+  if (event.target.closest('[data-delete-posting]')) { postingId = post.dataset.posting; deletePosting(); }
+  else openPosting(post.dataset.posting);
 }
 
 function onStatusChange() {
@@ -1661,6 +1849,7 @@ function onStatusChange() {
   persistHistory();
   renderRail();
   renderDeadline();
+  if (postingId) renderPostingView();
 }
 
 /* ---------- start-up ---------- */
@@ -1673,6 +1862,8 @@ async function init() {
   const savedModel = store.get('resume-advisor-model');
   if (MODELS.some((m) => m.id === savedModel)) $('model').value = savedModel;
   history = store.json(HISTORY_STORE, []);
+  postings = store.json(POSTINGS_STORE, []);
+  migratePostings();
   renderHistory();
 
   try { await loadProfile(); } catch (err) { $('login-msg').textContent = err.message; }
@@ -1721,25 +1912,23 @@ async function init() {
   });
   $('signout').addEventListener('click', () => { clearKey(); $('settings-dialog').close(); show(false); toast('Signed out'); });
   $('clear-history').addEventListener('click', () => {
-    if (!confirm('Remove all saved applications from this device?')) return;
+    if (!confirm('Remove all postings and resumes from this device?')) return;
     history = [];
+    postings = [];
+    current = null;
+    postingId = '';
     store.del(HISTORY_STORE);
+    store.del(POSTINGS_STORE);
     renderHistory();
+    showView('tailor');
+    $('settings-dialog').close();
     toast('Cleared');
   });
   $('model').addEventListener('change', () => store.set('resume-advisor-model', $('model').value));
 
-  // tailor form
-  $('gen').addEventListener('submit', generate);
-  for (const id of ['applink', 'notes', 'shorttitles', 'personal']) {
-    $(id).addEventListener('input', () => {
-      // A posting read from one link is stale once the link changes.
-      if (id === 'applink' && posting.source === 'link' && normalizeUrl($('applink').value) !== posting.link) setPosting('', '');
-      saveDraft();
-      updateLinkUi();
-    });
-  }
-  $('applink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('gen').requestSubmit(); } });
+  // import
+  $('applink').addEventListener('input', () => { saveDraft(); updateLinkUi(); });
+  $('applink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); readLinkNow(); } });
   $('fetch').addEventListener('click', readLinkNow);
   $('paste-catch').addEventListener('paste', (e) => { e.preventDefault(); acceptPasted(e.clipboardData?.getData('text/plain')); });
   $('paste-catch').addEventListener('input', (e) => { if (/^insertFrom(Paste|Drop)/.test(e.inputType || '')) acceptPasted($('paste-catch').value); });
@@ -1747,11 +1936,17 @@ async function init() {
     try { acceptPasted(await navigator.clipboard.readText()); }
     catch { $('paste-catch').focus(); toast('Press Ctrl V in the box'); }
   });
-  $('clear-posting').addEventListener('click', () => setPosting('', ''));
-  $('view-posting').addEventListener('click', () => {
-    $('posting-view').textContent = posting.text;
-    $('posting-source-note').textContent = posting.source === 'link' ? `Read from ${posting.link}` : 'Pasted from your clipboard. This text is used as it is.';
-    showDialog('posting-dialog');
+  // the posting, and building from it
+  $('gen').addEventListener('submit', generate);
+  for (const id of ['shorttitles', 'personal']) $(id).addEventListener('input', saveDraft);
+  $('pst-edit-link').addEventListener('click', () => openLinkDialog('posting'));
+  $('pst-reformat').addEventListener('click', reformatPosting);
+  $('pst-delete').addEventListener('click', deletePosting);
+  $('pst-deadline').addEventListener('click', () => { const p = postingById(postingId); if (p?.deadline) downloadDeadlineFor(p.deadline, `Apply: ${[p.title, p.company].filter(Boolean).join(', ')}`); });
+  $('pst-resumes').addEventListener('click', (e) => {
+    const li = e.target.closest('li[data-id]');
+    const entry = li && history.find((h) => h.id === li.dataset.id);
+    if (entry) { loadEntry(entry); setQuestions([]); showView('resume'); }
   });
   $('toggle-notes').addEventListener('click', () => setNotesOpen($('notes-field').hidden));
   // resume
@@ -1790,7 +1985,7 @@ async function init() {
   $('res-status').innerHTML = STATUSES.map((x) => `<option>${x}</option>`).join('');
   $('res-status').addEventListener('change', onStatusChange);
   $('deadline').addEventListener('click', downloadDeadline);
-  $('edit-link').addEventListener('click', openLinkDialog);
+  $('edit-link').addEventListener('click', () => openLinkDialog('resume'));
   $('link-form').addEventListener('submit', (e) => { e.preventDefault(); saveLink($('link-input').value); });
   $('link-clear').addEventListener('click', () => saveLink(''));
   wireDesktop();
@@ -1823,7 +2018,7 @@ async function init() {
     if (!b) return;
     if (b.dataset.done === 'merge') startMerge();
     else if (b.dataset.done === 'regen') regenerateWithAnswers();
-    else { showView('tailor'); $('gen').requestSubmit(); }
+    else showView('tailor');
   });
 
   // library

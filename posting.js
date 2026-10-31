@@ -39,8 +39,9 @@ export function cleanPosting(raw) {
 
   // A stack of short labels and values ("Employer", blank, "College of the Desert", blank, "Salary", ...) becomes
   // "Employer: College of the Desert" lines, once at least three pairs run in a row.
-  const isKey = (l) => l && l.length <= 24 && !/[.:;!?]$/.test(l) && !BULLET.test(l) && /^[A-Z]/.test(l);
-  const isVal = (l) => l && l.length <= 100 && !BULLET.test(l);
+  const SECTION = /^(duties|responsibilit\w*|essential (functions|duties)|(minimum |preferred |required |desired )?qualifications?|requirements?|benefits?|about( us| the .*)?|summary|overview|description|how to apply|position (summary|statement)|knowledge|skills|abilities|experience|education)$/i;
+  const isKey = (l) => l && l.length <= 24 && !/[.:;!?]$/.test(l) && !BULLET.test(l) && /^[A-Z]/.test(l) && !SECTION.test(l);
+  const isVal = (l) => l && l.length <= 100 && !BULLET.test(l) && !(l.length > 25 && /[.!?]$/.test(l));
   const stacked = [];
   for (let i = 0; i < lines.length;) {
     let j = i;

@@ -19,7 +19,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=30">
+  <link rel="stylesheet" href="styles.css?v=31">
 </head>
 <body>
   <!-- Sign in -->
@@ -39,14 +39,14 @@
 
   <div id="app" class="app" hidden>
     <!-- Left rail: new, the list of resumes, library, tools -->
-    <nav id="tabbar" class="rail" aria-label="Resumes">
+    <nav id="tabbar" class="rail" aria-label="Postings and resumes">
       <div class="rail-top">
         <img class="logo" src="favicon.svg" alt="" width="24" height="24">
         <span class="wordmark">Resume Advisor</span>
         <button type="button" class="icon-btn panel-toggle" data-panel-toggle="rail" aria-label="Collapse the list"><i data-icon="panel-left"></i></button>
       </div>
-      <button type="button" class="rail-new" data-view="tailor" aria-current="page"><i data-icon="plus"></i><span>New</span><kbd id="kbd-new"></kbd></button>
-      <ul id="history" class="rlist" aria-label="Resumes"></ul>
+      <button type="button" class="rail-new" data-view="tailor" aria-current="page"><i data-icon="plus"></i><span>Import</span><kbd id="kbd-new"></kbd></button>
+      <ul id="history" class="rlist" aria-label="Postings"></ul>
       <div class="rail-foot">
         <button type="button" class="rail-item" data-view="library"><i data-icon="book"></i><span>Library</span><b id="badge-l" class="badge" hidden></b></button>
         <div class="rail-tools">
@@ -60,21 +60,13 @@
 
     <!-- Stage: one document at a time -->
     <main id="main" class="stage">
-      <!-- New resume -->
+      <!-- Import: paste, drop, or link a posting; it is cleaned and filed in one format -->
       <section id="v-tailor" class="view" data-view="tailor">
-        <form id="gen" class="tailor" novalidate>
+        <div class="tailor">
           <div id="posting-source" class="posting-source">
             <div id="paste-empty" class="drop">
-              <textarea id="paste-catch" aria-label="Paste the posting" placeholder="Paste or drop the posting" spellcheck="false"></textarea>
+              <textarea id="paste-catch" aria-label="Paste the posting" placeholder="Paste or drop a posting, or paste its link" spellcheck="false"></textarea>
               <button id="paste" type="button" class="btn"><i data-icon="clipboard"></i><span>Paste</span></button>
-            </div>
-            <div id="paste-done" class="accepted" role="status" hidden>
-              <span class="accepted-mark"><i data-icon="check"></i></span>
-              <div class="accepted-text"><strong id="posting-preview"></strong><span id="posting-summary"></span></div>
-              <div class="accepted-actions">
-                <button id="view-posting" type="button" class="btn quiet">View</button>
-                <button id="clear-posting" type="button" class="btn quiet">Clear</button>
-              </div>
             </div>
           </div>
 
@@ -86,27 +78,42 @@
             </div>
             <p id="link-hint" class="hint" hidden></p>
           </div>
+          <p id="gen-msg" class="msg import-msg" role="status" aria-live="polite"></p>
+        </div>
+      </section>
 
-          <div class="opts">
-            <div class="field">
-              <label for="location">Location</label>
-              <select id="location"></select>
-            </div>
-            <div class="toggles" role="group" aria-label="Options">
-              <label class="toggle"><input id="shorttitles" type="checkbox"><span>Short titles</span></label>
-              <label class="toggle"><input id="personal" type="checkbox" checked><span>Caregiver</span></label>
-              <button id="toggle-notes" type="button" class="toggle-btn" aria-expanded="false" aria-controls="notes-field">Notes</button>
-            </div>
+      <!-- Posting: the filed posting, and the resumes built from it -->
+      <section id="v-posting" class="view" data-view="posting" hidden>
+        <header class="doc-bar">
+          <div class="doc-title"><strong id="pst-title"></strong><span id="pst-sub"></span></div>
+          <div class="doc-meta">
+            <button id="pst-deadline" type="button" class="stat stat-btn due" hidden></button>
+            <a id="pst-link" class="site-link" target="_blank" rel="noopener noreferrer" title="Open the posting" hidden><span id="pst-logo" class="site"></span><span id="pst-host"></span><i data-icon="external"></i></a>
+            <button id="pst-edit-link" type="button" class="btn quiet" aria-label="Posting link"><i data-icon="link"></i></button>
+            <button id="pst-reformat" type="button" class="btn quiet" aria-label="Format again"><i data-icon="refresh"></i></button>
+            <button id="pst-delete" type="button" class="btn quiet" aria-label="Delete the posting"><i data-icon="close"></i></button>
           </div>
-          <div class="field" id="notes-field" hidden>
-            <textarea id="notes" rows="3" aria-label="Notes for this run" placeholder="Notes"></textarea>
+        </header>
+        <form id="gen" class="doc-tools build" novalidate>
+          <div class="field">
+            <label for="location">Location</label>
+            <select id="location"></select>
           </div>
-
-          <div class="cta">
-            <button id="go" type="submit" class="btn primary"><i data-icon="sparkle"></i><span>Tailor</span><kbd id="kbd-go"></kbd></button>
-            <p id="gen-msg" class="msg" role="status" aria-live="polite"></p>
+          <div class="toggles" role="group" aria-label="Options">
+            <label class="toggle"><input id="shorttitles" type="checkbox"><span>Short titles</span></label>
+            <label class="toggle"><input id="personal" type="checkbox" checked><span>Caregiver</span></label>
+            <button id="toggle-notes" type="button" class="toggle-btn" aria-expanded="false" aria-controls="notes-field">Notes</button>
           </div>
+          <button id="go" type="submit" class="btn primary"><i data-icon="sparkle"></i><span>Build resume</span><kbd id="kbd-go"></kbd></button>
+          <div class="field notes-row" id="notes-field" hidden>
+            <textarea id="notes" rows="2" aria-label="Notes for this resume" placeholder="Notes"></textarea>
+          </div>
+          <p id="pst-msg" class="msg" role="status" aria-live="polite"></p>
         </form>
+        <div class="doc-scroll">
+          <section id="pst-resumes" class="pst-resumes" aria-label="Resumes" hidden></section>
+          <article id="pst-body" class="posting-doc"></article>
+        </div>
       </section>
 
       <!-- Resume -->
@@ -302,7 +309,7 @@
     <p id="sync-status" class="hint" role="status"></p>
     <h3>Data</h3>
     <div class="btn-row">
-      <button id="clear-history" type="button" class="btn">Clear history</button>
+      <button id="clear-history" type="button" class="btn">Clear all</button>
       <button id="signout" type="button" class="btn">Sign out</button>
     </div>
   </dialog>
@@ -347,13 +354,6 @@
     </form>
   </dialog>
 
-  <!-- Posting text -->
-  <dialog id="posting-dialog" class="sheet wide" aria-labelledby="posting-h">
-    <div class="sheet-head"><h2 id="posting-h">Posting</h2><button type="button" class="btn quiet" data-close aria-label="Close"><i data-icon="close"></i></button></div>
-    <p id="posting-source-note" class="hint"></p>
-    <pre id="posting-view" class="posting-view"></pre>
-  </dialog>
-
   <!-- Library merge -->
   <dialog id="review-dialog" class="sheet" aria-labelledby="review-h">
     <div class="sheet-head"><h2 id="review-h">Library changes</h2><button type="button" class="btn quiet" data-close aria-label="Close"><i data-icon="close"></i></button></div>
@@ -362,6 +362,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=30"></script>
+  <script type="module" src="app.js?v=31"></script>
 </body>
 </html>

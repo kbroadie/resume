@@ -1,5 +1,5 @@
 // Pure functions shared by the browser app and the tests. No DOM access here.
-import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=30';
+import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=31';
 
 export const MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5 (default)' },

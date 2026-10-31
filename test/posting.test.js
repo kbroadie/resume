@@ -104,3 +104,10 @@ test('pasted text that is only a web address is recognized as the posting link',
   assert.deepEqual(siteOf('https://www.governmentjobs.com/jobs/1'), { host: 'governmentjobs.com', origin: 'https://www.governmentjobs.com', letter: 'G' });
   assert.equal(siteOf('nonsense'), null);
 });
+
+test('section headings followed by a short line are not mistaken for label and value pairs', () => {
+  const raw = 'IT Technician\n\nDuties\n\nSupport the help desk.\n\nQualifications\n\nA+ certification.\n\nBenefits\n\nHealth coverage for you.\n\nClosing date: November 15, 2026';
+  const out = cleanPosting(raw);
+  assert.ok(!/Duties: /.test(out) && !/Qualifications: /.test(out));
+  assert.ok(out.includes('Duties\nSupport the help desk.') || out.includes('Duties\n\nSupport the help desk.'));
+});

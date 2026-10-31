@@ -569,3 +569,58 @@ body.resizing * { cursor: col-resize !important; }
 .doc-bar { flex-wrap: wrap; row-gap: .4rem; }
 .doc-title { flex: 1 1 16rem; }
 .doc-meta { flex-wrap: wrap; justify-content: flex-end; }
+
+/* ---------- Postings: the rail, the filed posting, building ---------- */
+.rlist li.rpost { display: block; position: relative; border-radius: var(--r-sm); margin-bottom: 2px; }
+.rpost > .ritem { width: 100%; }
+.rpost > .ritem-x { top: .7rem; transform: none; }
+.rpost:hover > .ritem-x { display: grid; }
+.rlist li.rpost:hover { background: none; }
+.rpost > .ritem:hover { background: var(--sunken); }
+.rlist li.rpost[aria-current="true"] > .ritem { background: var(--accent-soft); }
+.rlist li.rpost[aria-current="true"] > .ritem .ritem-text strong { color: var(--accent); }
+.rsub { list-style: none; margin: 0 0 .35rem 1.6rem; padding: 0 0 0 .5rem; border-left: 1px solid var(--line-strong); }
+.rsub li { position: relative; display: flex; border-radius: 6px; }
+.rsub li:hover { background: var(--sunken); }
+.rsub li[aria-current="true"] { background: var(--accent-soft); }
+.rres { flex: 1; min-width: 0; display: flex; align-items: center; gap: .55rem; padding: .35rem .5rem; border: 0; background: none; text-align: left; font: 500 .8125rem var(--ui); color: var(--fg); }
+.rsub li[aria-current="true"] .rres { color: var(--accent); font-weight: 700; }
+.rsub .ritem-x { top: 50%; transform: translateY(-50%); }
+.rsub li:hover .ritem-x { display: grid; }
+.drop.busy textarea { opacity: .55; }
+.drop.busy .btn { opacity: .5; }
+.import-msg { text-align: center; margin-top: .9rem; }
+
+.doc-tools.build { gap: .6rem .9rem; align-items: flex-end; }
+.doc-tools.build .field { margin: 0; min-width: 11rem; }
+.doc-tools.build select { margin-top: .25rem; }
+.doc-tools.build .toggles { padding-bottom: .15rem; }
+.doc-tools.build #go { margin-left: auto; height: 2.4rem; }
+.doc-tools.build #go kbd { background: color-mix(in srgb, var(--accent-fg) 18%, transparent); border-color: color-mix(in srgb, var(--accent-fg) 30%, transparent); color: var(--accent-fg); }
+.doc-tools.build .notes-row { flex: 1 1 100%; }
+.doc-tools.build .notes-row textarea { margin: 0; }
+.doc-tools.build .msg { flex: 1 1 100%; margin: 0; min-height: 0; }
+.doc-tools.build .msg:empty { display: none; }
+
+.posting-doc { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 1.6rem 1.8rem 1.4rem; box-shadow: var(--shadow); }
+.pst-facts { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.1rem; }
+.pst-facts span { padding: .2rem .65rem; border-radius: 999px; background: var(--sunken); font: 600 .8125rem var(--ui); color: var(--muted); font-variant-numeric: tabular-nums; }
+.pst-sec { margin-bottom: 1.35rem; }
+.pst-sec h3 { margin-bottom: .55rem; padding-bottom: .3rem; border-bottom: 1px solid var(--line); }
+.pst-sec p { margin: 0 0 .6rem; line-height: 1.55; max-width: 62ch; }
+.pst-sec ul { margin: 0; padding: 0; list-style: none; display: grid; gap: .45rem; max-width: 62ch; }
+.pst-sec li { position: relative; padding-left: 1.1rem; line-height: 1.5; }
+.pst-sec li::before { content: ""; position: absolute; left: .2rem; top: .62em; width: .32rem; height: .32rem; border-radius: 50%; background: var(--accent); opacity: .7; }
+.pst-foot { margin: 1rem 0 0; font-size: .8125rem; color: var(--muted); }
+.pst-resumes { margin-bottom: 1.25rem; }
+.pst-resumes h3 { margin-bottom: .5rem; }
+.pst-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .5rem; }
+.pst-card { width: 100%; display: flex; align-items: center; gap: .65rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel); text-align: left; }
+.pst-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.pst-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.pst-card-text strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pst-card-text span { font-size: .75rem; color: var(--muted); }
+.pst-scores { display: flex; gap: .4rem; font: 700 .9rem var(--head); font-variant-numeric: tabular-nums; }
+.pst-scores b:first-child { color: var(--accent); }
+.pst-scores b:last-child { color: var(--ok); }
+@media (max-width: 62rem) { .doc-tools.build #go { margin-left: 0; } }
