@@ -1,24 +1,24 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup, addBulletToDoc
-} from './lib.js?v=36';
-import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=36';
+} from './lib.js?v=37';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=37';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=36';
-import { icon, hydrateIcons } from './icons.js?v=36';
+} from './ats.js?v=37';
+import { icon, hydrateIcons } from './icons.js?v=37';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=36';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=36';
-import { cleanPosting, postingUrl, siteOf } from './posting.js?v=36';
-import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=36';
-import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=36';
-import { buildDraftRequest, checkDrafts } from './bullets.js?v=36';
-import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=36';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=36';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=36';
+} from './knowledge.js?v=37';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=37';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=37';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=37';
+import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=37';
+import { buildDraftRequest, checkDrafts } from './bullets.js?v=37';
+import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=37';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=37';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=37';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -2233,7 +2233,6 @@ async function init() {
   $('pst-edit-link').addEventListener('click', () => openLinkDialog('posting'));
   $('pst-reformat').addEventListener('click', reformatPosting);
   $('pst-fit').addEventListener('click', (e) => { if (e.target.closest('[data-pfit]')) assessPosting(postingId); });
-  $('pst-delete').addEventListener('click', () => deletePosting(postingId));
   $('trash-empty').addEventListener('click', emptyTrash);
   $('trash-list').addEventListener('click', (e) => {
     const li = e.target.closest('li[data-trash]');

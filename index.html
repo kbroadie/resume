@@ -19,7 +19,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=36">
+  <link rel="stylesheet" href="styles.css?v=37">
 </head>
 <body>
   <!-- Sign in -->
@@ -90,9 +90,8 @@
           <div class="doc-meta">
             <button id="pst-deadline" type="button" class="stat stat-btn due" hidden></button>
             <a id="pst-link" class="site-link" target="_blank" rel="noopener noreferrer" title="Open the posting" hidden><span id="pst-logo" class="site"></span><span id="pst-host"></span><i data-icon="external"></i></a>
-            <button id="pst-edit-link" type="button" class="btn quiet" aria-label="Posting link"><i data-icon="link"></i></button>
-            <button id="pst-reformat" type="button" class="btn quiet" aria-label="Format again"><i data-icon="refresh"></i></button>
-            <button id="pst-delete" type="button" class="btn quiet" aria-label="Delete the posting"><i data-icon="close"></i></button>
+            <button id="pst-edit-link" type="button" class="btn quiet" aria-label="Posting link" title="Posting link"><i data-icon="link"></i></button>
+            <button id="pst-reformat" type="button" class="btn quiet" aria-label="Format again" title="Format again with Claude"><i data-icon="refresh"></i></button>
           </div>
         </header>
         <form id="gen" class="doc-tools build" novalidate>
@@ -386,6 +385,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=36"></script>
+  <script type="module" src="app.js?v=37"></script>
 </body>
 </html>
