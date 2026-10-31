@@ -5,8 +5,8 @@
 // claim needs its own words in that source), then scores it. The score against the draft is computed here from
 // the draft's own text, so it moves as the resume changes. Nothing here asks the model to rate the draft.
 
-import { keywordCoverage, splitProfile, yearsSince, withProfilePreferences, sourceTextLookup } from './lib.js?v=32';
-import { knowledgeForPrompt } from './knowledge.js?v=32';
+import { keywordCoverage, splitProfile, yearsSince, withProfilePreferences, sourceTextLookup } from './lib.js?v=33';
+import { knowledgeForPrompt } from './knowledge.js?v=33';
 
 export const FIT_SYSTEM = `You compare one job posting with Kevin Broadie's resume library and report how well the library supports each of the posting's requirements.
 
@@ -94,8 +94,8 @@ const CREDIT = { strong: 1, partial: 0.5, none: 0 };
 // Is the requirement visible in this resume? By its own terms in the text, or (for an untouched draft) because the
 // draft cites a library entry that supports it.
 const squash = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-// The bullet Kevin wrote for a requirement is in the resume text.
-const hasAdded = (req, text) => Boolean(req.addedText && squash(text).includes(squash(req.addedText)));
+// The bullet Kevin wrote for a requirement, or the passage a recalculation found for it, is in the resume text.
+const hasAdded = (req, text) => Boolean((req.addedText && squash(text).includes(squash(req.addedText))) || (req.shownQuote && squash(text).includes(squash(req.shownQuote))));
 
 export function shownIn(req, text, citedIds = null) {
   if (hasAdded(req, text)) return true;
@@ -141,4 +141,48 @@ export function fingerprint(profile) {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
+}
+
+/* ---------- recalculating the draft score on demand ---------- */
+
+// Keyword matching can miss a bullet that says a requirement in other words. On request, Claude reads the draft
+// against each supported requirement and must point to the passage that shows it; the passage has to be in the resume.
+export const JUDGE_SYSTEM = `You check whether a resume shows each of a posting's requirements.
+
+RULES
+1. For each requirement, decide if the resume text shows it: the same work or skill, said in the resume's own words, even if the wording differs from the requirement's. A related but different skill does not count.
+2. If it does, shown is true and quote is one passage copied exactly from the resume text (a bullet, or part of one, under 200 characters) that shows it. If not, shown is false and quote is an empty string.
+3. Use only the resume text. Do not assume, and do not credit what the resume does not say.
+Respond only by calling judge_draft, once.`;
+
+export const JUDGE_TOOL = {
+  name: 'judge_draft',
+  description: 'Say, for each requirement, whether the resume shows it, quoting the passage that does.',
+  input_schema: {
+    type: 'object',
+    required: ['verdicts'],
+    properties: {
+      verdicts: { type: 'array', items: { type: 'object', required: ['index', 'shown', 'quote'], properties: { index: { type: 'integer' }, shown: { type: 'boolean' }, quote: { type: 'string' } } } }
+    }
+  }
+};
+
+export function buildJudgeRequest(requirements, resumeText) {
+  const user = ['<REQUIREMENTS>', JSON.stringify(requirements.map((r) => ({ index: r.index, requirement: r.text, terms: r.keywords || [] }))), '</REQUIREMENTS>', '<RESUME>', resumeText, '</RESUME>'].join('\n');
+  return { system: JUDGE_SYSTEM, tools: [JUDGE_TOOL], tool_choice: { type: 'auto' }, user };
+}
+
+// Returns { [index]: quote } for the requirements the resume really shows. A verdict with no quote, or a quote that
+// is not in the resume, does not count.
+export function checkVerdicts(input, requirements, resumeText) {
+  const wanted = new Set(requirements.map((r) => r.index));
+  const hay = squash(resumeText);
+  const out = {};
+  for (const v of Array.isArray(input?.verdicts) ? input.verdicts : []) {
+    if (!wanted.has(v?.index) || !v.shown) continue;
+    const quote = String(v.quote ?? '').replace(/\s+/g, ' ').trim().slice(0, 240);
+    if (squash(quote).length < 12 || !hay.includes(squash(quote))) continue;
+    out[v.index] = quote;
+  }
+  return out;
 }

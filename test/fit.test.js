@@ -94,3 +94,23 @@ test('a bullet added to one resume only counts for the draft, and one saved to t
   // If the bullet is later taken out of the resume, it stops counting.
   assert.equal(fitScores([reqs[1]], 'Something else entirely.').draft, 0);
 });
+
+test('a recalculation counts a requirement only if Claude quotes a passage that is really in the resume', async () => {
+  const { buildJudgeRequest, checkVerdicts, JUDGE_TOOL } = await import('../fit.js');
+  const text = 'Engaged stakeholders across departments and outside partners.\nDesigned brochures and flyers.';
+  const reqs = [{ index: 0, text: 'Stakeholder engagement' }, { index: 1, text: 'Public speaking' }, { index: 2, text: 'Print design' }];
+  const r = buildJudgeRequest(reqs, text);
+  assert.equal(r.tools[0], JUDGE_TOOL);
+  assert.match(r.user, /<RESUME>\nEngaged stakeholders/);
+  const out = checkVerdicts({ verdicts: [
+    { index: 0, shown: true, quote: 'Engaged stakeholders across departments' },
+    { index: 1, shown: true, quote: 'Spoke at conferences every year' },
+    { index: 2, shown: false, quote: 'Designed brochures and flyers.' },
+    { index: 9, shown: true, quote: 'Designed brochures and flyers.' }
+  ] }, reqs, text);
+  assert.deepEqual(out, { 0: 'Engaged stakeholders across departments' });
+  const scored = fitScores([req({ text: 'Stakeholder engagement', keywords: ['stakeholder engagement'], support: 'strong', source_ids: [], shownQuote: 'Engaged stakeholders across departments' })], text);
+  assert.equal(scored.draft, 100, 'the quoted passage counts although the keywords are not in the text');
+  assert.equal(fitScores([req({ keywords: ['stakeholder engagement'], support: 'strong', source_ids: [], shownQuote: 'Engaged stakeholders across departments' })], 'Nothing about it.').draft, 0, 'a quote that is no longer in the resume stops counting');
+  assert.equal(checkVerdicts(null, reqs, text)[0], undefined);
+});

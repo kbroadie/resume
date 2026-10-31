@@ -1,24 +1,24 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup, addBulletToDoc
-} from './lib.js?v=32';
-import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=32';
+} from './lib.js?v=33';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=33';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=32';
-import { icon, hydrateIcons } from './icons.js?v=32';
+} from './ats.js?v=33';
+import { icon, hydrateIcons } from './icons.js?v=33';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=32';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=32';
-import { cleanPosting, postingUrl, siteOf } from './posting.js?v=32';
-import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=32';
-import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=32';
-import { buildDraftRequest, checkDrafts } from './bullets.js?v=32';
-import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=32';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=32';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=32';
+} from './knowledge.js?v=33';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=33';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=33';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=33';
+import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=33';
+import { buildDraftRequest, checkDrafts } from './bullets.js?v=33';
+import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=33';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=33';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=33';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -712,6 +712,36 @@ function missingGroup(scores) {
 }
 
 let drafting = false;
+let recalculating = false;
+
+// Recalculates the draft score on request. Matching on the posting's terms can miss a bullet that says the same
+// thing in other words, so Claude reads the resume against each supported requirement and must quote the passage
+// that shows it; the quote has to be in the resume, or it does not count.
+async function recalculateDraft() {
+  if (recalculating || !current?.fit) return;
+  const reqs = current.fit.requirements;
+  const targets = reqs.map((r, i) => ({ index: i, text: r.text, keywords: r.keywords, ok: r.support !== 'none' && !r.addedOnly })).filter((t) => t.ok).map(({ ok, ...t }) => t);
+  const id = current.id;
+  const before = currentScores()?.draft;
+  recalculating = true;
+  renderFit();
+  try {
+    if (targets.length) {
+      const quotes = checkVerdicts(await askClaude(buildJudgeRequest(targets, current.text), 'judge_draft'), targets, current.text);
+      if (current?.id !== id) return;
+      for (const t of targets) { if (quotes[t.index]) reqs[t.index].shownQuote = quotes[t.index]; else delete reqs[t.index].shownQuote; }
+      current.fit.judgedAt = new Date().toISOString();
+      saveEntry({ fit: current.fit });
+    }
+    const after = currentScores()?.draft;
+    toast(before === after ? `Draft ${after}, unchanged` : `Draft ${before} \u2192 ${after}`);
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    recalculating = false;
+    if (current?.id === id) renderFit();
+  }
+}
 
 async function draftBullets(indexes) {
   if (drafting || !current?.fit) return;
@@ -787,6 +817,7 @@ function renderFit() {
   const gap = scores.library - scores.draft;
   const row = (r, i) => `<li class="req ${r.state}"><div class="req-top"><span class="req-text">${esc(r.text)}</span><span class="tag ${r.weight === 'must' ? '' : 'role'}" title="${r.weight === 'must' ? 'Required' : 'Preferred'}">${r.weight === 'must' ? 'Req' : 'Pref'}</span></div>
       <p class="req-note">${esc(r.note)}${r.support === 'partial' ? ' <em>Related.</em>' : ''}</p>
+      ${r.state === 'shown' && r.shownQuote ? `<p class="req-quote">\u201c${esc(r.shownQuote.slice(0, 140))}\u201d</p>` : ''}
       ${r.state === 'unused' ? `<button type="button" class="btn small" data-ask="${i}">${icon('send')}<span>Ask</span></button>` : ''}</li>`;
   const group = (state, title, open) => {
     const rows = scores.rows.map((r, i) => [r, i]).filter(([r]) => r.state === state);
@@ -794,7 +825,7 @@ function renderFit() {
   };
   detail.innerHTML = `<div class="scores" title="${esc(SCORE_HELP)}">
       <div class="score lib"><span class="label">Library</span><strong>${scores.library}</strong><span class="meter lib" role="img" aria-label="Library ${scores.library} of 100"><i style="width:${scores.library}%"></i></span></div>
-      <div class="score draft"><span class="label">Draft</span><strong>${scores.draft}</strong><span class="meter draft" role="img" aria-label="Draft ${scores.draft} of 100"><i style="width:${scores.draft}%"></i></span></div>
+      <div class="score draft"><span class="label">Draft<button type="button" class="icon-btn mini" data-recalc aria-label="Recalculate the draft score" title="Recalculate the draft score"${recalculating ? ' aria-busy="true"' : ''}>${icon('refresh')}</button></span><strong>${scores.draft}</strong><span class="meter draft" role="img" aria-label="Draft ${scores.draft} of 100"><i style="width:${scores.draft}%"></i></span></div>
     </div>
     ${gap > 0 ? `<p class="fit-gap">${gap} points unused</p>` : ''}
     ${group('unused', 'Unused', true)}${group('shown', 'Shown', false)}${missingGroup(scores)}
@@ -1626,6 +1657,7 @@ function paletteCommands() {
       { group: 'Resume', label: 'Compare', run: () => openCompare() },
       { group: 'Resume', label: 'Posting link', run: () => openLinkDialog('resume') },
       ...(current.deadline ? [{ group: 'Resume', label: 'Deadline to calendar', run: downloadDeadline }] : []),
+      { group: 'Resume', label: 'Recalculate draft score', run: () => { showView('resume', 'fit'); recalculateDraft(); } },
       { group: 'Resume', label: 'Rescore fit', run: () => { showView('resume', 'fit'); assessFit(); } }
     );
   }
@@ -2054,6 +2086,7 @@ async function init() {
     $(id).addEventListener('click', (e) => {
       const tab = e.target.closest('[data-tab]');
       if (tab) { showView('resume', tab.dataset.tab); return; }
+      if (e.target.closest('[data-recalc]')) { recalculateDraft(); return; }
       const dr = e.target.closest('[data-draft]');
       if (dr) { draftBullets(dr.dataset.draft.split(',').map(Number)); return; }
       const add = e.target.closest('[data-draft-add]');

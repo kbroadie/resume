@@ -1,7 +1,7 @@
 // Applicant tracking: how well the resume suits an automated reader, and rephrasing suggestions that stay inside
 // the library.
 
-import { keywordCoverage, splitProfile, yearsSince } from './lib.js?v=32';
+import { keywordCoverage, splitProfile, yearsSince } from './lib.js?v=33';
 
 /* ---------- the applicant tracking check ---------- */
 
