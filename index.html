@@ -19,7 +19,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=34">
+  <link rel="stylesheet" href="styles.css?v=35">
 </head>
 <body>
   <!-- Sign in -->
@@ -342,6 +342,18 @@
     <p id="regen-msg" class="msg" role="status" aria-live="polite"></p>
   </dialog>
 
+  <!-- Confirm -->
+  <dialog id="confirm-dialog" class="sheet small" aria-labelledby="confirm-h">
+    <form method="dialog">
+      <h2 id="confirm-h"></h2>
+      <p id="confirm-text" class="confirm-text"></p>
+      <div class="btn-row">
+        <button id="confirm-no" type="submit" value="no" class="btn">Cancel</button>
+        <button id="confirm-yes" type="submit" value="yes" class="btn danger">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Posting link -->
   <dialog id="link-dialog" class="sheet" aria-labelledby="link-h">
     <div class="sheet-head"><h2 id="link-h">Posting link</h2><button type="button" class="btn quiet" data-close aria-label="Close"><i data-icon="close"></i></button></div>
@@ -363,6 +375,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=34"></script>
+  <script type="module" src="app.js?v=35"></script>
 </body>
 </html>

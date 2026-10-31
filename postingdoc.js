@@ -5,7 +5,7 @@
 // posting, and anything the sorting leaves out is put back under Other, so no line of the posting is lost and none
 // is invented. A plain heading-based sorter does the same job offline and when Claude is unavailable.
 
-import { checkDeadline, findDeadline, deadlineState } from './deadline.js?v=34';
+import { checkDeadline, findDeadline, deadlineState } from './deadline.js?v=35';
 
 export const KINDS = [
   { kind: 'about', heading: 'About', bullets: false },

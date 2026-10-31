@@ -1,24 +1,24 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup, addBulletToDoc
-} from './lib.js?v=34';
-import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=34';
+} from './lib.js?v=35';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=35';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=34';
-import { icon, hydrateIcons } from './icons.js?v=34';
+} from './ats.js?v=35';
+import { icon, hydrateIcons } from './icons.js?v=35';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=34';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=34';
-import { cleanPosting, postingUrl, siteOf } from './posting.js?v=34';
-import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=34';
-import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=34';
-import { buildDraftRequest, checkDrafts } from './bullets.js?v=34';
-import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=34';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=34';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=34';
+} from './knowledge.js?v=35';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=35';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=35';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=35';
+import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=35';
+import { buildDraftRequest, checkDrafts } from './bullets.js?v=35';
+import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=35';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=35';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=35';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -557,18 +557,37 @@ async function reformatPosting() {
   }
 }
 
-function deletePosting() {
-  const p = postingById(postingId);
+// A small yes/no dialog. Cancel has the focus, so Enter never deletes by accident.
+function askConfirm(title, text, label = 'Delete') {
+  return new Promise((resolve) => {
+    const d = $('confirm-dialog');
+    $('confirm-h').textContent = title;
+    $('confirm-text').textContent = text;
+    $('confirm-text').hidden = !text;
+    $('confirm-yes').textContent = label;
+    d.returnValue = '';
+    d.addEventListener('close', () => resolve(d.returnValue === 'yes'), { once: true });
+    showDialog('confirm-dialog');
+    $('confirm-no').focus();
+  });
+}
+
+async function deletePosting(id = postingId) {
+  const p = postingById(id);
   if (!p) return;
+  const n = postingResumes(id).length;
+  const ok = await askConfirm(`Delete \u201c${p.title}\u201d?`, n ? `Its ${n} resume${n === 1 ? '' : 's'} will be deleted too.` : '');
+  if (!ok) return;
   const before = { postings, history, current };
   postings = postings.filter((x) => x.id !== p.id);
   history = history.filter((e) => e.postingId !== p.id);
   persistPostings();
   persistHistory();
   if (current?.postingId === p.id) current = null;
-  postingId = '';
+  const wasOpen = postingId === p.id;
+  if (wasOpen) postingId = '';
   renderRail();
-  showView('tailor');
+  if (wasOpen || !current) showView('tailor');
   toast('Deleted', { label: 'Undo', run: () => { ({ postings, history } = before); current = before.current; persistPostings(); persistHistory(); renderRail(); openPosting(p.id); } });
 }
 
@@ -2018,7 +2037,7 @@ function onHistoryClick(event) {
     return;
   }
   if (!post) return;
-  if (event.target.closest('[data-delete-posting]')) { postingId = post.dataset.posting; deletePosting(); }
+  if (event.target.closest('[data-delete-posting]')) deletePosting(post.dataset.posting);
   else openPosting(post.dataset.posting);
 }
 
@@ -2090,8 +2109,8 @@ async function init() {
     if (e.target instanceof HTMLDialogElement) e.target.close();
   });
   $('signout').addEventListener('click', () => { clearKey(); $('settings-dialog').close(); show(false); toast('Signed out'); });
-  $('clear-history').addEventListener('click', () => {
-    if (!confirm('Remove all postings and resumes from this device?')) return;
+  $('clear-history').addEventListener('click', async () => {
+    if (!(await askConfirm('Delete everything?', 'All postings and resumes on this device will be removed.', 'Delete all'))) return;
     history = [];
     postings = [];
     current = null;
@@ -2121,7 +2140,7 @@ async function init() {
   $('pst-edit-link').addEventListener('click', () => openLinkDialog('posting'));
   $('pst-reformat').addEventListener('click', reformatPosting);
   $('pst-fit').addEventListener('click', (e) => { if (e.target.closest('[data-pfit]')) assessPosting(postingId); });
-  $('pst-delete').addEventListener('click', deletePosting);
+  $('pst-delete').addEventListener('click', () => deletePosting(postingId));
   $('pst-deadline').addEventListener('click', () => { const p = postingById(postingId); if (p?.deadline) downloadDeadlineFor(p.deadline, `Apply: ${[p.title, p.company].filter(Boolean).join(', ')}`); });
   $('pst-resumes').addEventListener('click', (e) => {
     const li = e.target.closest('li[data-id]');

@@ -2,8 +2,8 @@
 // suggests the job it most likely belongs under; Kevin edits the text, picks the employer, and decides whether it
 // goes into his library. Nothing here is a claim about Kevin until he adds it.
 
-import { splitProfile } from './lib.js?v=34';
-import { knowledgeForPrompt } from './knowledge.js?v=34';
+import { splitProfile } from './lib.js?v=35';
+import { knowledgeForPrompt } from './knowledge.js?v=35';
 
 export const DRAFT_SYSTEM = `You draft resume bullets for requirements of a job posting that Kevin Broadie's library does not yet mention. Kevin will read each draft, change it to what is true, choose the job it belongs under, and decide whether to keep it. He has worked as a designer, art director, systems administrator, web developer, and online producer, and has a long career, so most requirements are likely things he has done.
 

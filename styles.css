@@ -653,3 +653,13 @@ body.resizing * { cursor: col-resize !important; }
 .pot { flex: none; margin-left: .4rem; padding: 0 .4rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 700 .75rem/1.35 var(--head); font-variant-numeric: tabular-nums; }
 .pot.wait { background: var(--sunken); color: var(--muted); }
 .ritem-text .sub { align-items: center; }
+
+/* Confirming a delete */
+dialog.sheet.small { width: min(23rem, calc(100% - 2rem)); }
+#confirm-dialog h2 { font-size: 1.1rem; margin-bottom: .4rem; overflow-wrap: anywhere; }
+.confirm-text { margin: 0 0 .25rem; color: var(--muted); font-size: .875rem; }
+#confirm-dialog .btn-row { justify-content: flex-end; margin-top: 1rem; }
+.btn.danger { background: #b3261e; border-color: #b3261e; color: #fff; }
+.btn.danger:hover:not(:disabled) { background: #b3261e; filter: brightness(1.1); }
+:root[data-theme="dark"] .btn.danger { background: #e5675c; border-color: #e5675c; color: #20100e; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.danger { background: #e5675c; border-color: #e5675c; color: #20100e; } }
