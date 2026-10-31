@@ -5,8 +5,8 @@
 // claim needs its own words in that source), then scores it. The score against the draft is computed here from
 // the draft's own text, so it moves as the resume changes. Nothing here asks the model to rate the draft.
 
-import { keywordCoverage, splitProfile, yearsSince, withProfilePreferences, sourceTextLookup } from './lib.js?v=31';
-import { knowledgeForPrompt } from './knowledge.js?v=31';
+import { keywordCoverage, splitProfile, yearsSince, withProfilePreferences, sourceTextLookup } from './lib.js?v=32';
+import { knowledgeForPrompt } from './knowledge.js?v=32';
 
 export const FIT_SYSTEM = `You compare one job posting with Kevin Broadie's resume library and report how well the library supports each of the posting's requirements.
 
@@ -93,7 +93,12 @@ const CREDIT = { strong: 1, partial: 0.5, none: 0 };
 
 // Is the requirement visible in this resume? By its own terms in the text, or (for an untouched draft) because the
 // draft cites a library entry that supports it.
+const squash = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+// The bullet Kevin wrote for a requirement is in the resume text.
+const hasAdded = (req, text) => Boolean(req.addedText && squash(text).includes(squash(req.addedText)));
+
 export function shownIn(req, text, citedIds = null) {
+  if (hasAdded(req, text)) return true;
   if (req.keywords.length && keywordCoverage(req.keywords, text).covered.length > 0) return true;
   return Boolean(citedIds && req.support !== 'none' && req.source_ids.some((id) => citedIds.has(id)));
 }
@@ -107,9 +112,11 @@ export function fitScores(reqs, text, citedIds = null) {
   let draft = 0;
   const rows = reqs.map((r) => {
     const w = WEIGHT[r.weight];
+    total += w;
+    // A bullet Kevin wrote into this resume only counts for the draft: the library does not support it.
+    if (r.addedOnly) { const on = hasAdded(r, text) || shownIn(r, text, citedIds); if (on) draft += w; return { ...r, shown: on, state: on ? 'shown' : 'missing' }; }
     const credit = CREDIT[r.support];
     const shown = credit > 0 && shownIn(r, text, citedIds);
-    total += w;
     lib += w * credit;
     if (shown) draft += w * credit;
     return { ...r, shown, state: r.support === 'none' ? 'missing' : shown ? 'shown' : 'unused' };

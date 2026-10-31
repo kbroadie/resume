@@ -624,3 +624,12 @@ body.resizing * { cursor: col-resize !important; }
 .pst-scores b:first-child { color: var(--accent); }
 .pst-scores b:last-child { color: var(--ok); }
 @media (max-width: 62rem) { .doc-tools.build #go { margin-left: 0; } }
+
+/* Writing bullets for missing requirements */
+.bullet-ed { margin-top: .6rem; display: grid; gap: .5rem; }
+.bullet-ed textarea { margin: 0; min-height: 4.6rem; font-size: .9rem; }
+.bullet-ed select { margin: 0; min-height: 2.2rem; font-size: .8125rem; font-weight: 600; }
+.bullet-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.bullet-ed .msg { margin: 0; min-height: 0; }
+.bullet-ed .msg:empty { display: none; }
+.req.missing > .btn { margin-top: .5rem; }

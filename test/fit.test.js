@@ -76,3 +76,21 @@ test('cited ids are collected from anywhere in a result, and the library fingerp
   assert.notEqual(fingerprint(copy), fingerprint(profile));
   assert.ok(grant);
 });
+
+test('a bullet added to one resume only counts for the draft, and one saved to the library counts for both', () => {
+  const reqs = [
+    req({ text: 'A', weight: 'must', support: 'strong', keywords: ['grant'] }),
+    req({ text: 'B', weight: 'must', support: 'none', source_ids: [], keywords: ['stakeholder engagement'], addedOnly: true, addedText: 'Engaged stakeholders.' }),
+    req({ text: 'C', weight: 'preferred', support: 'none', source_ids: [], keywords: ['rocket'] })
+  ];
+  const s = fitScores(reqs, 'Wrote grant applications. Engaged stakeholders.');
+  // total weight 3 + 3 + 1 = 7; library credit 3; draft credit 3 + 3
+  assert.equal(s.library, Math.floor(300 / 7));
+  assert.equal(s.draft, Math.floor(600 / 7));
+  assert.deepEqual(s.rows.map((r) => r.state), ['shown', 'shown', 'missing']);
+  const saved = fitScores([{ ...reqs[1], addedOnly: false, support: 'strong', source_ids: [], addedBy: 'you' }], 'Engaged stakeholders.');
+  assert.equal(saved.library, 100);
+  assert.equal(saved.draft, 100);
+  // If the bullet is later taken out of the resume, it stops counting.
+  assert.equal(fitScores([reqs[1]], 'Something else entirely.').draft, 0);
+});

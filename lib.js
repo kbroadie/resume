@@ -1,5 +1,5 @@
 // Pure functions shared by the browser app and the tests. No DOM access here.
-import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=31';
+import { chosenWordings, learnedFacts, knowledgeForPrompt, normalizeKnowledge } from './knowledge.js?v=32';
 
 export const MODELS = [
   { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5 (default)' },
@@ -306,6 +306,30 @@ export function validateResult(result, profile, { includePersonalLine = true, kn
 }
 
 // Turns the model's output plus the profile into a plain document structure.
+// Adds one bullet that Kevin wrote under a role in a built document. The role's entry is found by its employer and
+// dates; if the document does not have it yet, a new entry is made in date order. Returns { doc, ok, reason }: a role
+// at its bullet limit, an unknown role, or text already in the document leaves the document as it was.
+export function addBulletToDoc(doc, profile, roleId, text, { knowledge = null } = {}) {
+  const role = splitProfile(profile, { includePersonalLine: true, knowledge }).usable.roles.find((r) => r.id === roleId);
+  const bullet = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!role) return { doc, ok: false, reason: 'Choose an employer' };
+  if (!bullet) return { doc, ok: false, reason: 'Write the bullet' };
+  const norm = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if ((doc.experience || []).some((x) => x.bullets.some((b) => norm(b) === norm(bullet)))) return { doc, ok: false, reason: 'Already in the resume' };
+  const next = structuredClone(doc);
+  const dates = dateRange(role.start, role.end);
+  let entry = next.experience.find((x) => x.org === role.org && x.dates === dates);
+  if (!entry) {
+    entry = { sort: role.start, title: role.title, org: role.org, location: role.location, dates, bullets: [] };
+    const key = (d) => (d.sort && d.sort.length === 4 ? `${d.sort}-01` : d.sort || '');
+    const at = next.experience.findIndex((x) => key(x) < key(entry));
+    if (at < 0) next.experience.push(entry); else next.experience.splice(at, 0, entry);
+  }
+  if (entry.bullets.length >= (ROLE_BULLET_CAP[roleId] ?? Infinity)) return { doc, ok: false, reason: `${role.title} keeps ${ROLE_BULLET_CAP[roleId]} bullet` };
+  entry.bullets.push(bullet);
+  return { doc: next, ok: true, reason: '' };
+}
+
 // Roles that never get more than this many bullets, whatever the library or the model offers.
 export const ROLE_BULLET_CAP = { cac: 1 };
 

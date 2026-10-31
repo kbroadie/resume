@@ -1,23 +1,24 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
-  sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup
-} from './lib.js?v=31';
-import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=31';
+  sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup, addBulletToDoc
+} from './lib.js?v=32';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=32';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=31';
-import { icon, hydrateIcons } from './icons.js?v=31';
+} from './ats.js?v=32';
+import { icon, hydrateIcons } from './icons.js?v=32';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=31';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=31';
-import { cleanPosting, postingUrl, siteOf } from './posting.js?v=31';
-import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=31';
-import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=31';
-import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=31';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=31';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=31';
+} from './knowledge.js?v=32';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=32';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=32';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=32';
+import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=32';
+import { buildDraftRequest, checkDrafts } from './bullets.js?v=32';
+import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=32';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=32';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=32';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -633,7 +634,10 @@ async function generate(event) {
 
 // replaceId: regenerate this history entry in place instead of adding a new one. source: where the posting came from.
 function acceptResult(result, issues, opts, link, { replaceId = '', source, notes = '' } = {}) {
-  const doc = buildDoc(result, profile, { ...opts, knowledge });
+  let doc = buildDoc(result, profile, { ...opts, knowledge });
+  // Bullets Kevin wrote into this resume stay when it is rebuilt.
+  const extras = replaceId ? current.extras || [] : [];
+  for (const x of extras) doc = addBulletToDoc(doc, profile, x.role_id, x.text, { knowledge }).doc;
   const text = renderText(doc);
   const locationLabel = profile.contact.locations.find((l) => l.id === opts.locationId)?.label || '';
   const known = sourceTextLookup(profile, { includePersonalLine: opts.includePersonalLine, knowledge });
@@ -642,7 +646,7 @@ function acceptResult(result, issues, opts, link, { replaceId = '', source, note
     text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: replaceId ? current.fit : null, citedIds: citedIdsOf(result), deadline: replaceId ? current.deadline : source.deadline !== undefined ? source.deadline : checkDeadline(result, source.text) || findDeadline(source.text),
     postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
     postingText: (replaceId ? current.postingId : source.postingId) ? '' : (source.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
-    generatedAt: new Date().toISOString(),
+    generatedAt: new Date().toISOString(), extras,
     opts: { locationId: opts.locationId, shortTitles: Boolean(opts.shortTitles), includePersonalLine: opts.includePersonalLine !== false }, notes
   };
   let entry;
@@ -676,6 +680,87 @@ function currentScores() {
   const c = current;
   if (!c?.fit?.requirements?.length) return null;
   return fitScores(c.fit.requirements, c.text, c.edited ? null : new Set(c.citedIds || []));
+}
+
+// Requirements the library does not support: a draft bullet to edit, the employer to put it under, and whether to
+// keep it in the library. Nothing is added until Kevin presses Add.
+function roleOptions(selected) {
+  const roles = profile.roles.filter((r) => r.status === 'verified');
+  const years = (r) => `${String(r.start).slice(0, 4)}\u2013${r.end ? String(r.end).slice(0, 4) : 'now'}`;
+  return `<option value="">Employer</option>${roles.map((r) => `<option value="${esc(r.id)}"${r.id === selected ? ' selected' : ''}>${esc(r.org)} \u00b7 ${esc(r.title)} (${years(r)})</option>`).join('')}`;
+}
+
+function missingGroup(scores) {
+  const rows = scores.rows.map((r, i) => [r, i]).filter(([r]) => r.state === 'missing');
+  if (!rows.length) return '';
+  const reqs = current.fit.requirements;
+  const undrafted = rows.filter(([, i]) => !reqs[i].draft).map(([, i]) => i);
+  const card = ([r, i]) => {
+    const d = reqs[i].draft;
+    return `<li class="req missing" data-req="${i}"><div class="req-top"><span class="req-text">${esc(r.text)}</span><span class="tag ${r.weight === 'must' ? '' : 'role'}" title="${r.weight === 'must' ? 'Required' : 'Preferred'}">${r.weight === 'must' ? 'Req' : 'Pref'}</span></div>
+      <p class="req-note">${esc(r.note)}</p>
+      ${d ? `<div class="bullet-ed"><textarea data-draft-text rows="3" aria-label="Bullet">${esc(d.text)}</textarea>
+        <select data-draft-role aria-label="Employer">${roleOptions(d.role_id)}</select>
+        <div class="bullet-row"><label class="toggle"><input type="checkbox" data-draft-lib${d.library === false ? '' : ' checked'}><span>Library</span></label>
+          <button type="button" class="btn small primary" data-draft-add="${i}"><span>Add</span></button></div>
+        <p class="msg" data-draft-msg role="status"></p></div>`
+        : `<button type="button" class="btn small" data-draft="${i}">${icon('sparkle')}<span>Write</span></button>`}</li>`;
+  };
+  return `<details class="fold req-group" open><summary><span>Missing</span><span class="count">${rows.length}</span></summary>
+    ${undrafted.length > 1 ? `<div class="btn-row"><button type="button" class="btn small" data-draft="${undrafted.join(',')}">${icon('sparkle')}<span>${drafting ? 'Writing\u2026' : 'Write all'}</span></button></div>` : ''}
+    <ul class="cards">${rows.map(card).join('')}</ul></details>`;
+}
+
+let drafting = false;
+
+async function draftBullets(indexes) {
+  if (drafting || !current?.fit) return;
+  const reqs = current.fit.requirements;
+  const targets = indexes.filter((i) => reqs[i] && !reqs[i].draft).map((i) => ({ index: i, text: reqs[i].text, keywords: reqs[i].keywords }));
+  if (!targets.length) return;
+  const id = current.id;
+  drafting = true;
+  toast('Writing\u2026');
+  try {
+    const opts = { includePersonalLine: $('personal').checked, knowledge };
+    const input = await askClaude(buildDraftRequest(profile, targets, opts), 'draft_bullets');
+    const drafts = checkDrafts(input, targets, profile.roles.filter((r) => r.status === 'verified').map((r) => r.id));
+    if (current?.id !== id) return;
+    for (const [i, d] of Object.entries(drafts)) reqs[Number(i)].draft = { ...d, library: true };
+    if (!Object.keys(drafts).length) toast('Nothing to write'); else toast('Edit, choose an employer, then Add');
+    saveEntry({ fit: current.fit });
+  } catch (err) {
+    toast(err.message);
+  } finally {
+    drafting = false;
+    if (current?.id === id) renderFit();
+  }
+}
+
+// Puts the edited bullet under the chosen employer in this resume and, if Library is on, saves it as a fact that
+// belongs to that employer (it joins the library for every resume, and can be merged into the profile file).
+async function addRequirementBullet(i) {
+  const req = current?.fit?.requirements[i];
+  const d = req?.draft;
+  if (!d) return;
+  const say = (text) => { const el = document.querySelector(`#fit-detail [data-req="${i}"] [data-draft-msg]`); if (el) el.textContent = text; };
+  if (current.edited) { say('Revert edits first'); return; }
+  const text = d.text.replace(/\s+/g, ' ').trim();
+  const res = addBulletToDoc(current.doc, profile, d.role_id, text, { knowledge });
+  if (!res.ok) { say(res.reason); return; }
+  const toLibrary = d.library !== false;
+  if (toLibrary) {
+    knowledge = applyAnswer(knowledge, { topic: `requirement ${req.text}`, text: `Added from a posting requirement: ${req.text}`, role_id: d.role_id }, { action: 'fact', text });
+    await persist();
+  }
+  current.doc = res.doc;
+  current.extras = [...(current.extras || []), { role_id: d.role_id, text }];
+  Object.assign(req, toLibrary
+    ? { support: 'strong', source_ids: [], note: 'Added by you, and saved to your library.', addedBy: 'you', addedText: text }
+    : { addedOnly: true, note: 'Added to this resume only.', addedBy: 'you', addedText: text });
+  delete req.draft;
+  finishChange({ extras: current.extras, fit: current.fit });
+  toast(toLibrary ? 'Added' : 'Added here', toLibrary ? { label: 'Merge', run: startMerge } : null);
 }
 
 function renderFit() {
@@ -712,7 +797,7 @@ function renderFit() {
       <div class="score draft"><span class="label">Draft</span><strong>${scores.draft}</strong><span class="meter draft" role="img" aria-label="Draft ${scores.draft} of 100"><i style="width:${scores.draft}%"></i></span></div>
     </div>
     ${gap > 0 ? `<p class="fit-gap">${gap} points unused</p>` : ''}
-    ${group('unused', 'Unused', true)}${group('shown', 'Shown', false)}${group('missing', 'Missing', true)}
+    ${group('unused', 'Unused', true)}${group('shown', 'Shown', false)}${missingGroup(scores)}
     ${stale ? '<p class="fit-stale" role="status">Library changed</p>' : ''}
     ${again('Rescore')}`;
   hydrateIcons(detail);
@@ -881,7 +966,7 @@ function loadEntry(entry) {
     issues: entry.issues || [], keywords: entry.keywords || { covered: [], missing: [] }, fit: entry.fit && typeof entry.fit === 'object' ? entry.fit : null, fitError: '',
     postingKeywords: entry.postingKeywords || [], citedIds: entry.citedIds || [], deadline: entry.deadline === undefined ? findDeadline(entry.postingText || '') : entry.deadline, suggestions: entry.suggestions || [],
     unsupported: entry.unsupported || [],
-    postingId: entry.postingId || '', postingText: postingById(entry.postingId)?.text || entry.postingText || '', summaryOptions: entry.summaryOptions || [], summaryOriginal: entry.summaryOriginal || ''
+    extras: entry.extras || [], postingId: entry.postingId || '', postingText: postingById(entry.postingId)?.text || entry.postingText || '', summaryOptions: entry.summaryOptions || [], summaryOriginal: entry.summaryOriginal || ''
   };
   if (entry.deadline === undefined) saveEntry({ deadline: current.deadline });
   renderCurrent();
@@ -1954,10 +2039,25 @@ async function init() {
   $('composer').addEventListener('submit', sendComposer);
   $('composer-text').addEventListener('input', growComposer);
   $('composer-text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); $('composer').requestSubmit(); } });
+  // Editing a drafted bullet: keep the text, employer, and library choice on the requirement as they change.
+  const draftOf = (el) => { const li = el.closest('[data-req]'); return li ? current?.fit?.requirements[Number(li.dataset.req)]?.draft : null; };
+  $('fit-detail').addEventListener('input', (e) => { if (e.target.matches('[data-draft-text]')) { const d = draftOf(e.target); if (d) d.text = e.target.value; } });
+  $('fit-detail').addEventListener('change', (e) => {
+    const d = draftOf(e.target);
+    if (!d) return;
+    if (e.target.matches('[data-draft-text]')) d.text = e.target.value;
+    else if (e.target.matches('[data-draft-role]')) d.role_id = e.target.value;
+    else if (e.target.matches('[data-draft-lib]')) d.library = e.target.checked;
+    saveEntry({ fit: current.fit });
+  });
   for (const id of ['fit-strip', 'fit-detail']) {
     $(id).addEventListener('click', (e) => {
       const tab = e.target.closest('[data-tab]');
       if (tab) { showView('resume', tab.dataset.tab); return; }
+      const dr = e.target.closest('[data-draft]');
+      if (dr) { draftBullets(dr.dataset.draft.split(',').map(Number)); return; }
+      const add = e.target.closest('[data-draft-add]');
+      if (add) { addRequirementBullet(Number(add.dataset.draftAdd)); return; }
       if (e.target.closest('[data-fit="again"]')) { assessFit(); return; }
       const ask = e.target.closest('[data-ask]');
       if (ask) { const r = currentScores()?.rows[Number(ask.dataset.ask)]; if (r) askFor(`Show my experience with ${r.text.replace(/[.\s]+$/, '')}.`); return; }
