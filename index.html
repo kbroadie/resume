@@ -19,7 +19,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=35">
+  <link rel="stylesheet" href="styles.css?v=36">
 </head>
 <body>
   <!-- Sign in -->
@@ -49,6 +49,7 @@
       <ul id="history" class="rlist" aria-label="Postings"></ul>
       <div class="rail-foot">
         <button type="button" class="rail-item" data-view="library"><i data-icon="book"></i><span>Library</span><b id="badge-l" class="badge" hidden></b></button>
+        <button type="button" class="rail-item" data-view="trash"><i data-icon="trash"></i><span>Trash</span><b id="badge-t" class="badge quiet" hidden></b></button>
         <div class="rail-tools">
           <button id="open-palette" class="icon-btn" type="button" aria-label="Commands"><i data-icon="search"></i></button>
           <button id="theme" class="icon-btn" type="button" aria-label="Theme"></button>
@@ -183,6 +184,16 @@
         <div id="cmp-panes" class="panes" data-mode="both">
           <article id="cmp-posting" class="pane"><h3><i data-icon="file"></i>Posting</h3><div id="cmp-posting-body" class="pane-body"></div></article>
           <article id="cmp-resume" class="pane"><h3><i data-icon="edit"></i>Draft</h3><div id="cmp-resume-body" class="pane-body"></div></article>
+        </div>
+      </section>
+
+      <!-- Trash -->
+      <section id="v-trash" class="view" data-view="trash" hidden>
+        <header class="page-head trash-head"><h2>Trash</h2><button id="trash-empty" type="button" class="btn" hidden><i data-icon="trash"></i><span>Empty</span></button></header>
+        <div class="page">
+          <p id="trash-none" class="none-yet">Nothing here</p>
+          <ul id="trash-list" class="trash-list"></ul>
+          <p id="trash-note" class="hint" hidden>Items are removed for good after 30 days.</p>
         </div>
       </section>
 
@@ -375,6 +386,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=35"></script>
+  <script type="module" src="app.js?v=36"></script>
 </body>
 </html>

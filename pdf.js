@@ -9,7 +9,7 @@
 // layoutResume() is pure: it takes a measuring function and returns positioned text, so it can be tested without
 // a browser. buildPdf() embeds the fonts and draws the result.
 
-import { typo } from './lib.js?v=35';
+import { typo } from './lib.js?v=36';
 
 // US Letter with 1 inch above and below and 1.5 inches at the sides.
 export const PAGE = { width: 612, height: 792, left: 108, right: 108, top: 72, bottom: 72 };
@@ -265,8 +265,8 @@ async function loadScript(src) {
 // deps: { PDFLib, fontkit, loadFont(file) -> Uint8Array }. In the browser the defaults load the vendored libraries.
 export async function buildPdf(doc, meta = {}, deps = null) {
   if (!deps) {
-    if (!window.PDFLib) await loadScript('vendor/pdf-lib.min.js?v=35');
-    if (!window.fontkit) await loadScript('vendor/fontkit.umd.min.js?v=35');
+    if (!window.PDFLib) await loadScript('vendor/pdf-lib.min.js?v=36');
+    if (!window.fontkit) await loadScript('vendor/fontkit.umd.min.js?v=36');
     deps = {
       PDFLib: window.PDFLib,
       fontkit: window.fontkit,

@@ -1,24 +1,24 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup, addBulletToDoc
-} from './lib.js?v=35';
-import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=35';
+} from './lib.js?v=36';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=36';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=35';
-import { icon, hydrateIcons } from './icons.js?v=35';
+} from './ats.js?v=36';
+import { icon, hydrateIcons } from './icons.js?v=36';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=35';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=35';
-import { cleanPosting, postingUrl, siteOf } from './posting.js?v=35';
-import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=35';
-import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=35';
-import { buildDraftRequest, checkDrafts } from './bullets.js?v=35';
-import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=35';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=35';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=35';
+} from './knowledge.js?v=36';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=36';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=36';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=36';
+import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=36';
+import { buildDraftRequest, checkDrafts } from './bullets.js?v=36';
+import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=36';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=36';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=36';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -136,6 +136,7 @@ function showView(name, tab) {
     if (on) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
   }
   document.body.dataset.view = name;
+  if (name === 'trash') renderTrash();
   renderRailMarks();
   $('inspector').hidden = !current || !['resume', 'compare'].includes(name);
   if (tab && TABS.includes(tab)) { inspectorTab = tab; if (!panels.insOpen) setPanel('ins', true); }
@@ -557,6 +558,87 @@ async function reformatPosting() {
   }
 }
 
+/* ---------- the trash ---------- */
+
+const TRASH_STORE = 'resume-advisor-trash';
+const TRASH_DAYS = 30;
+let trash = [];   // newest first: { id, at, kind: 'posting' | 'resume', label, posting, resumes | entry }
+
+function persistTrash() {
+  // Out of room: the oldest items go first.
+  while (!store.set(TRASH_STORE, JSON.stringify(trash)) && trash.length) trash.pop();
+}
+
+function purgeTrash() {
+  const cutoff = Date.now() - TRASH_DAYS * 864e5;
+  const kept = trash.filter((t) => Date.parse(t.at) > cutoff);
+  if (kept.length !== trash.length) { trash = kept; persistTrash(); }
+}
+
+const trashItem = (kind, label, data) => ({ id: newId('t'), at: new Date().toISOString(), kind, label, ...data });
+const byNewest = (a, b) => (a.at < b.at ? 1 : -1);
+
+// Puts a trashed posting, or resume, back. A resume whose posting is gone brings the posting back with it (the whole
+// posting, with its other trashed resumes, if that is in the trash too). Returns the posting to open.
+function restoreTrash(id) {
+  const item = trash.find((t) => t.id === id);
+  if (!item) return null;
+  let target = item;
+  if (item.kind === 'resume' && !postingById(item.posting.id)) target = trash.find((t) => t.kind === 'posting' && t.posting.id === item.posting.id) || { ...item, kind: 'posting', resumes: [item.entry] };
+  const p = target.kind === 'posting' ? target.posting : item.posting;
+  if (!postingById(p.id)) postings = [p, ...postings].sort(byNewest);
+  for (const r of target.kind === 'posting' ? target.resumes : [item.entry]) if (!history.some((h) => h.id === r.id)) history.push(r);
+  if (item.kind === 'resume' && !history.some((h) => h.id === item.entry.id)) history.push(item.entry);
+  history.sort(byNewest);
+  trash = trash.filter((t) => t.id !== item.id && t.id !== target.id);
+  persistPostings();
+  persistHistory();
+  persistTrash();
+  renderRail();
+  if (document.body.dataset.view === 'trash') renderTrash();
+  return p;
+}
+
+function renderTrash() {
+  $('trash-none').hidden = trash.length > 0;
+  $('trash-empty').hidden = trash.length === 0;
+  $('trash-note').hidden = trash.length === 0;
+  $('trash-list').innerHTML = trash.map((t) => {
+    const left = Math.max(0, Math.ceil((Date.parse(t.at) + TRASH_DAYS * 864e5 - Date.now()) / 864e5));
+    const sub = t.kind === 'posting'
+      ? `Posting${t.resumes.length ? ` \u00b7 ${t.resumes.length} resume${t.resumes.length === 1 ? '' : 's'}` : ''}`
+      : `Resume \u00b7 ${t.posting.title}`;
+    return `<li data-trash="${esc(t.id)}"><div class="trash-text"><strong>${esc(t.label)}</strong><span>${esc(sub)} \u00b7 deleted ${esc(shortDate(t.at))} \u00b7 ${left} day${left === 1 ? '' : 's'} left</span></div>
+      <button type="button" class="btn small" data-restore><span>Restore</span></button><button type="button" class="btn small quiet" data-forever aria-label="Delete for good"><i data-icon="close"></i></button></li>`;
+  }).join('');
+  hydrateIcons($('trash-list'));
+}
+
+function renderTrashBadge() {
+  $('badge-t').hidden = trash.length === 0;
+  $('badge-t').textContent = String(trash.length);
+}
+
+async function emptyTrash() {
+  if (!trash.length) return;
+  if (!(await askConfirm('Empty the trash?', `${trash.length} item${trash.length === 1 ? '' : 's'} will be deleted for good.`, 'Empty'))) return;
+  trash = [];
+  persistTrash();
+  renderTrash();
+  renderTrashBadge();
+  toast('Emptied');
+}
+
+async function deleteForever(id) {
+  const item = trash.find((t) => t.id === id);
+  if (!item) return;
+  if (!(await askConfirm(`Delete \u201c${item.label}\u201d for good?`, 'It cannot be restored.', 'Delete'))) return;
+  trash = trash.filter((t) => t.id !== id);
+  persistTrash();
+  renderTrash();
+  renderTrashBadge();
+}
+
 // A small yes/no dialog. Cancel has the focus, so Enter never deletes by accident.
 function askConfirm(title, text, label = 'Delete') {
   return new Promise((resolve) => {
@@ -576,11 +658,13 @@ async function deletePosting(id = postingId) {
   const p = postingById(id);
   if (!p) return;
   const n = postingResumes(id).length;
-  const ok = await askConfirm(`Delete \u201c${p.title}\u201d?`, n ? `Its ${n} resume${n === 1 ? '' : 's'} will be deleted too.` : '');
+  const ok = await askConfirm(`Delete \u201c${p.title}\u201d?`, n ? `Its ${n} resume${n === 1 ? '' : 's'} will go too. Both can be restored from the trash.` : 'It can be restored from the trash.', 'Delete');
   if (!ok) return;
-  const before = { postings, history, current };
+  const item = trashItem('posting', p.title, { posting: p, resumes: postingResumes(id) });
+  trash = [item, ...trash];
   postings = postings.filter((x) => x.id !== p.id);
   history = history.filter((e) => e.postingId !== p.id);
+  persistTrash();
   persistPostings();
   persistHistory();
   if (current?.postingId === p.id) current = null;
@@ -588,7 +672,7 @@ async function deletePosting(id = postingId) {
   if (wasOpen) postingId = '';
   renderRail();
   if (wasOpen || !current) showView('tailor');
-  toast('Deleted', { label: 'Undo', run: () => { ({ postings, history } = before); current = before.current; persistPostings(); persistHistory(); renderRail(); openPosting(p.id); } });
+  toast('Moved to trash', { label: 'Undo', run: () => { const back = restoreTrash(item.id); if (back) openPosting(back.id); } });
 }
 
 // Resumes made before postings were kept as their own records each get a posting of their own.
@@ -1691,7 +1775,7 @@ async function teach() {
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const MOD = IS_MAC ? '⌘' : 'Ctrl';
 const ALT = IS_MAC ? '⌥' : 'Alt';
-const VIEW_NAMES = { tailor: 'Import', posting: 'Posting', resume: 'Resume', compare: 'Compare', library: 'Library' };
+const VIEW_NAMES = { tailor: 'Import', posting: 'Posting', resume: 'Resume', compare: 'Compare', library: 'Library', trash: 'Trash' };
 // Alt + number: the stage, then the inspector tabs.
 const NAV = [['view', 'tailor', 'Import'], ['view', 'library', 'Library'], ['tab', 'fit', 'Fit'], ['tab', 'terms', 'Terms'], ['tab', 'edits', 'Edits'], ['tab', 'checks', 'Checks'], ['tab', 'questions', 'Ask']];
 
@@ -1743,6 +1827,7 @@ function paletteCommands() {
     );
   }
   list.push(
+    { group: 'Go to', label: 'Trash', run: () => showView('trash') },
     { group: 'App', label: 'Theme', run: cycleTheme },
     { group: 'App', label: 'Settings', run: () => showDialog('settings-dialog') },
     { group: 'App', label: 'Keys', hint: '?', run: showKeys }
@@ -2006,6 +2091,7 @@ function renderRail() {
   }).join('');
   hydrateIcons($('history'));
   renderRailMarks();
+  renderTrashBadge();
 }
 
 function renderRailMarks() {
@@ -2027,12 +2113,15 @@ function onHistoryClick(event) {
     const entry = history.find((e) => e.id === row.dataset.id);
     if (!entry) return;
     if (event.target.closest('[data-delete]')) {
-      const snapshot = history;
+      const posting = postingById(entry.postingId);
+      const item = trashItem('resume', `Resume \u00b7 ${shortDate(entry.at)}`, { entry, posting: posting || { id: entry.postingId, title: entry.title || 'Posting' } });
+      trash = [item, ...trash];
       history = removeHistory(history, entry.id);
+      persistTrash();
       persistHistory();
-      if (current?.id === entry.id) { current = null; showView(postingById(entry.postingId) ? 'posting' : 'tailor'); if (postingById(entry.postingId)) { postingId = entry.postingId; renderPostingView(); } }
+      if (current?.id === entry.id) { current = null; showView(posting ? 'posting' : 'tailor'); if (posting) { postingId = posting.id; renderPostingView(); } }
       renderHistory();
-      toast('Deleted', { label: 'Undo', run: () => { history = snapshot; persistHistory(); renderHistory(); } });
+      toast('Moved to trash', { label: 'Undo', run: () => { restoreTrash(item.id); if (postingId) renderPostingView(); } });
     } else { loadEntry(entry); setQuestions([]); showView('resume'); }
     return;
   }
@@ -2061,6 +2150,8 @@ async function init() {
   if (MODELS.some((m) => m.id === savedModel)) $('model').value = savedModel;
   history = store.json(HISTORY_STORE, []);
   postings = store.json(POSTINGS_STORE, []);
+  trash = store.json(TRASH_STORE, []);
+  purgeTrash();
   migratePostings();
   renderHistory();
 
@@ -2110,17 +2201,19 @@ async function init() {
   });
   $('signout').addEventListener('click', () => { clearKey(); $('settings-dialog').close(); show(false); toast('Signed out'); });
   $('clear-history').addEventListener('click', async () => {
-    if (!(await askConfirm('Delete everything?', 'All postings and resumes on this device will be removed.', 'Delete all'))) return;
+    if (!(await askConfirm('Move everything to the trash?', 'Every posting and resume. They can be restored for 30 days.', 'Move'))) return;
+    trash = [...postings.map((p) => trashItem('posting', p.title, { posting: p, resumes: postingResumes(p.id) })), ...trash];
     history = [];
     postings = [];
     current = null;
     postingId = '';
-    store.del(HISTORY_STORE);
-    store.del(POSTINGS_STORE);
+    persistTrash();
+    persistHistory();
+    persistPostings();
     renderHistory();
     showView('tailor');
     $('settings-dialog').close();
-    toast('Cleared');
+    toast('Moved to trash');
   });
   $('model').addEventListener('change', () => store.set('resume-advisor-model', $('model').value));
 
@@ -2141,6 +2234,13 @@ async function init() {
   $('pst-reformat').addEventListener('click', reformatPosting);
   $('pst-fit').addEventListener('click', (e) => { if (e.target.closest('[data-pfit]')) assessPosting(postingId); });
   $('pst-delete').addEventListener('click', () => deletePosting(postingId));
+  $('trash-empty').addEventListener('click', emptyTrash);
+  $('trash-list').addEventListener('click', (e) => {
+    const li = e.target.closest('li[data-trash]');
+    if (!li) return;
+    if (e.target.closest('[data-restore]')) { const back = restoreTrash(li.dataset.trash); if (back) { toast('Restored'); renderTrashBadge(); } }
+    else if (e.target.closest('[data-forever]')) deleteForever(li.dataset.trash);
+  });
   $('pst-deadline').addEventListener('click', () => { const p = postingById(postingId); if (p?.deadline) downloadDeadlineFor(p.deadline, `Apply: ${[p.title, p.company].filter(Boolean).join(', ')}`); });
   $('pst-resumes').addEventListener('click', (e) => {
     const li = e.target.closest('li[data-id]');
