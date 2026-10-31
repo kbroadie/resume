@@ -1,24 +1,24 @@
 import {
   MODELS, buildRequest, validateResult, buildDoc, renderText, renderHtml, escapeHtml, groupLookup,
   sectionTexts, typo, markTerms, yearsSince, normalizeUrl, keywordCoverage, resumeStats, resumeFilename, buildFetchRequest, readFetchedPosting, sourceTextLookup, addBulletToDoc
-} from './lib.js?v=33';
-import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=33';
+} from './lib.js?v=34';
+import { buildPdf, docFromText, estimateLayout } from './pdf.js?v=34';
 import {
   atsLint, checkSuggestions, applySuggestion, buildSuggestRequest,
   buildSummaryRequest, checkSummaries
-} from './ats.js?v=33';
-import { icon, hydrateIcons } from './icons.js?v=33';
+} from './ats.js?v=34';
+import { icon, hydrateIcons } from './icons.js?v=34';
 import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
-} from './knowledge.js?v=33';
-import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=33';
-import { cleanPosting, postingUrl, siteOf } from './posting.js?v=33';
-import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=33';
-import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=33';
-import { buildDraftRequest, checkDrafts } from './bullets.js?v=33';
-import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=33';
-import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=33';
-import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=33';
+} from './knowledge.js?v=34';
+import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=34';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=34';
+import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=34';
+import { KINDS, buildFormatRequest, checkStructure, structureLocal, renderPostingText } from './postingdoc.js?v=34';
+import { buildDraftRequest, checkDrafts } from './bullets.js?v=34';
+import { buildFitRequest, buildJudgeRequest, checkVerdicts, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=34';
+import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=34';
+import { STATUSES, addEntry, updateEntry, removeEntry as removeHistory, label as historyLabel } from './history.js?v=34';
 
 const API = 'https://api.anthropic.com/v1';
 // Storage names from earlier versions are kept so existing sign-ins and saved answers keep working.
@@ -409,6 +409,8 @@ async function importPosting(raw, { link = '', source = 'pasted' } = {}) {
   setImporting(true);
   try {
     importMsg('Formatting…');
+    const fitting = computeFit(cleaned);   // scored against the library while the posting is being filed
+    fitting.catch(() => {});
     const { s: structured, by } = await structurePosting(cleaned);
     const p = makePosting(structured, cleaned, { link: link || normalizeUrl($('applink').value) || '', source, by });
     postings = [p, ...postings].slice(0, POSTINGS_CAP);
@@ -419,6 +421,7 @@ async function importPosting(raw, { link = '', source = 'pasted' } = {}) {
     updateLinkUi();
     renderRail();
     openPosting(p.id);
+    assessPosting(p.id, fitting);
     toast(by === 'claude' ? 'Imported' : 'Imported, basic format');
     return true;
   } finally {
@@ -515,6 +518,7 @@ function renderPostingView() {
     }).join('')}
     <p class="pst-foot">${wordCount(p.text).toLocaleString('en-US')} words · ${p.by === 'claude' ? 'Filed by Claude' : 'Basic format'}</p>`;
 
+  renderPostingFit();
   const box = $('pst-resumes');
   box.hidden = resumes.length === 0;
   box.innerHTML = resumes.length ? `<h3>Resumes</h3><ul class="pst-cards">${resumes.map((r) => {
@@ -582,6 +586,7 @@ function migratePostings() {
       const s = structureLocal(cleaned);
       p = makePosting({ ...s, title: e.title || s.title, company: e.company || s.company, location: s.location || '', deadline: e.deadline ?? s.deadline }, cleaned, { link: e.link || '', source: 'pasted', by: 'local' });
       p.at = e.at;
+      p.fit = e.fit && typeof e.fit === 'object' ? freshFit(e.fit) : null;
       postings.push(p);
       byText.set(cleaned, p);
     }
@@ -621,7 +626,7 @@ async function generate(event) {
     msg.textContent = 'Building… about 40 seconds';
     const input = await askClaude(req, 'submit_resume');
     const issues = validateResult(input, profile, { ...opts, knowledge });
-    acceptResult(input, issues, opts, p.link, { notes: $('notes').value, source: { text: p.text, deadline: p.deadline, postingId: p.id, title: p.title, company: p.company } });
+    acceptResult(input, issues, opts, p.link, { notes: $('notes').value, source: { text: p.text, deadline: p.deadline, postingId: p.id, title: p.title, company: p.company, fit: p.fit } });
     msg.textContent = '';
     $('notes').value = '';
     setNotesOpen(false);
@@ -643,7 +648,7 @@ function acceptResult(result, issues, opts, link, { replaceId = '', source, note
   const known = sourceTextLookup(profile, { includePersonalLine: opts.includePersonalLine, knowledge });
   const entryData = {
     title: source.title || result.posting_title || '', company: source.company || result.company || '', link: link || '', postingId: replaceId ? current.postingId : source.postingId, location: locationLabel,
-    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: replaceId ? current.fit : null, citedIds: citedIdsOf(result), deadline: replaceId ? current.deadline : source.deadline !== undefined ? source.deadline : checkDeadline(result, source.text) || findDeadline(source.text),
+    text, originalText: text, doc, issues, keywords: keywordCoverage(result.posting_keywords, text), fit: replaceId ? current.fit : freshFit(source.fit), citedIds: citedIdsOf(result), deadline: replaceId ? current.deadline : source.deadline !== undefined ? source.deadline : checkDeadline(result, source.text) || findDeadline(source.text),
     postingKeywords: result.posting_keywords || [], suggestions: checkSuggestions(result.suggestions, { doc, knownText: known, libraryText: known.all() }),
     postingText: (replaceId ? current.postingId : source.postingId) ? '' : (source.text || '').slice(0, 15000), summaryOptions: [], summaryOriginal: '',
     generatedAt: new Date().toISOString(), extras,
@@ -834,19 +839,23 @@ function renderFit() {
   hydrateIcons(detail);
 }
 
+// Reads a posting against the library: its requirements, and how far the library supports each.
+async function computeFit(text) {
+  const opts = { includePersonalLine: $('personal').checked, knowledge };
+  const input = await askClaude(buildFitRequest(profile, { posting: text, ...opts }), 'report_fit');
+  const requirements = checkFit(input, sourceTextLookup(profile, opts));
+  if (!requirements.length) throw new Error('No requirements came back. Try again.');
+  return { requirements, hash: fingerprint(profile), at: new Date().toISOString() };
+}
+
 async function assessFit() {
   if (!current?.postingText) { if (current) { current.fitError = 'This resume was made before the posting was kept, so it cannot be scored.'; renderFit(); } return; }
   const id = current.id;
-  const text = current.postingText;
   assessingId = id;
   current.fitError = '';
   renderFit();
   try {
-    const opts = { includePersonalLine: $('personal').checked, knowledge };
-    const input = await askClaude(buildFitRequest(profile, { posting: text, ...opts }), 'report_fit');
-    const requirements = checkFit(input, sourceTextLookup(profile, opts));
-    if (!requirements.length) throw new Error('No requirements came back. Try again.');
-    const fit = { requirements, hash: fingerprint(profile), at: new Date().toISOString() };
+    const fit = await computeFit(current.postingText);
     history = updateEntry(history, id, { fit });
     persistHistory();
     if (current?.id === id) current.fit = fit;
@@ -856,6 +865,59 @@ async function assessFit() {
     assessingId = '';
     if (current?.id === id) renderFit();
   }
+}
+
+/* ---------- the potential score: a posting against the library, before any resume exists ---------- */
+
+const assessingPostings = new Set();
+const fitErrors = new Map();
+
+// What the library could support of this posting, out of 100: the Library score, with no resume involved.
+const potentialOf = (p) => (p?.fit?.requirements?.length ? fitScores(p.fit.requirements, '', null).library : null);
+
+async function assessPosting(id, pending = null) {
+  const p = postingById(id);
+  if (!p || assessingPostings.has(id)) return;
+  assessingPostings.add(id);
+  fitErrors.delete(id);
+  if (postingId === id) renderPostingFit();
+  try {
+    p.fit = await (pending || computeFit(p.cleaned || p.text));
+    persistPostings();
+  } catch (err) {
+    fitErrors.set(id, `Could not score: ${err.message}`);
+  } finally {
+    assessingPostings.delete(id);
+    renderRail();
+    if (postingId === id) renderPostingFit();
+  }
+}
+
+// What a resume made from the posting starts with: the posting's requirements, without any marks from other resumes.
+const freshFit = (fit) => (fit ? { ...fit, requirements: fit.requirements.map(({ draft, addedBy, addedText, addedOnly, shownQuote, ...r }) => ({ ...r })) } : null);
+
+function renderPostingFit() {
+  const p = postingById(postingId);
+  const box = $('pst-fit');
+  if (!p) return;
+  const busy = assessingPostings.has(p.id);
+  const again = (label) => `<button type="button" class="btn small" data-pfit="again"><i data-icon="refresh"></i><span>${label}</span></button>`;
+  if (!p.fit?.requirements?.length) {
+    box.innerHTML = `<div class="pfit-head"><h3>Potential</h3></div>${busy ? '<p class="none-yet" role="status">Scoring against your library\u2026</p>' : `${fitErrors.get(p.id) ? `<p class="msg">${esc(fitErrors.get(p.id))}</p>` : ''}${again('Score')}`}`;
+    hydrateIcons(box);
+    return;
+  }
+  const sc = fitScores(p.fit.requirements, '', null);
+  const stale = p.fit.hash !== fingerprint(profile);
+  const bySupport = (k) => sc.rows.filter((r) => r.support === k);
+  const row = (r) => `<li class="req ${r.support === 'none' ? 'missing' : r.support === 'partial' ? 'unused' : 'shown'}"><div class="req-top"><span class="req-text">${esc(r.text)}</span><span class="tag ${r.weight === 'must' ? '' : 'role'}" title="${r.weight === 'must' ? 'Required' : 'Preferred'}">${r.weight === 'must' ? 'Req' : 'Pref'}</span></div><p class="req-note">${esc(r.note)}</p></li>`;
+  const group = (k, title, open) => (bySupport(k).length ? `<details class="fold req-group"${open ? ' open' : ''}><summary><span>${title}</span><span class="count">${bySupport(k).length}</span></summary><ul class="cards">${bySupport(k).map(row).join('')}</ul></details>` : '');
+  box.innerHTML = `<div class="pfit-head"><h3>Potential</h3>${again(busy ? '\u2026' : 'Rescore')}</div>
+    <div class="pfit-main" title="${esc(SCORE_HELP)}"><strong>${sc.library}</strong><div><span class="meter lib" role="img" aria-label="Potential ${sc.library} of 100"><i style="width:${sc.library}%"></i></span>
+      <p>What your library can support of this posting. ${bySupport('strong').length} supported, ${bySupport('partial').length} related, ${bySupport('none').length} missing.</p></div></div>
+    ${group('none', 'Missing', true)}${group('partial', 'Related', false)}${group('strong', 'Supported', false)}
+    ${stale ? '<p class="fit-stale" role="status">Library changed</p>' : ''}`;
+  hydrateIcons(box);
 }
 
 // Fills the comment box on the Resume tab, so a requirement can be asked for in one tap.
@@ -1918,7 +1980,7 @@ function renderRail() {
     const resumes = postingResumes(p.id);
     return `<li class="rpost" data-posting="${esc(p.id)}">
       <button type="button" class="ritem" data-open-posting><span class="site" aria-hidden="true">${logo}</span>
-        <span class="ritem-text"><strong>${esc(p.title)}</strong><span class="sub"><i class="co">${esc(p.company || shortDate(p.at))}</i>${dueTag(p)}</span></span></button>
+        <span class="ritem-text"><strong>${esc(p.title)}</strong><span class="sub"><i class="co">${esc(p.company || shortDate(p.at))}</i>${dueTag(p)}</span></span>${potentialOf(p) != null ? `<b class="pot" title="Potential: what your library can support">${potentialOf(p)}</b>` : assessingPostings.has(p.id) ? '<b class="pot wait" title="Scoring">\u2026</b>' : ''}</button>
       <button type="button" class="ritem-x" data-delete-posting aria-label="Delete the posting"><i data-icon="close"></i></button>
       ${resumes.length ? `<ul class="rsub">${resumes.map((e) => `<li data-id="${esc(e.id)}"><button type="button" class="rres" data-open><span class="dot ${statusDot(e.status)}" title="${esc(e.status || 'Drafted')}"></span><span>Resume · ${esc(shortDate(e.at))}</span></button>
         <button type="button" class="ritem-x" data-delete aria-label="Delete"><i data-icon="close"></i></button></li>`).join('')}</ul>` : ''}</li>`;
@@ -2058,6 +2120,7 @@ async function init() {
   for (const id of ['shorttitles', 'personal']) $(id).addEventListener('input', saveDraft);
   $('pst-edit-link').addEventListener('click', () => openLinkDialog('posting'));
   $('pst-reformat').addEventListener('click', reformatPosting);
+  $('pst-fit').addEventListener('click', (e) => { if (e.target.closest('[data-pfit]')) assessPosting(postingId); });
   $('pst-delete').addEventListener('click', deletePosting);
   $('pst-deadline').addEventListener('click', () => { const p = postingById(postingId); if (p?.deadline) downloadDeadlineFor(p.deadline, `Apply: ${[p.title, p.company].filter(Boolean).join(', ')}`); });
   $('pst-resumes').addEventListener('click', (e) => {

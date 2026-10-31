@@ -19,7 +19,7 @@
     // Apply a saved light or dark choice before first paint so the page does not flash.
     try { var t = localStorage.getItem('resume-advisor-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=33">
+  <link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
   <!-- Sign in -->
@@ -111,6 +111,7 @@
           <p id="pst-msg" class="msg" role="status" aria-live="polite"></p>
         </form>
         <div class="doc-scroll">
+          <section id="pst-fit" class="pst-fit" aria-label="Potential"></section>
           <section id="pst-resumes" class="pst-resumes" aria-label="Resumes" hidden></section>
           <article id="pst-body" class="posting-doc"></article>
         </div>
@@ -362,6 +363,6 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script type="module" src="app.js?v=33"></script>
+  <script type="module" src="app.js?v=34"></script>
 </body>
 </html>

@@ -114,3 +114,10 @@ test('a recalculation counts a requirement only if Claude quotes a passage that 
   assert.equal(fitScores([req({ keywords: ['stakeholder engagement'], support: 'strong', source_ids: [], shownQuote: 'Engaged stakeholders across departments' })], 'Nothing about it.').draft, 0, 'a quote that is no longer in the resume stops counting');
   assert.equal(checkVerdicts(null, reqs, text)[0], undefined);
 });
+
+test('the potential score of a posting is the Library score, whatever text is (or is not) written yet', () => {
+  const reqs = [req({ weight: 'must', support: 'strong', keywords: ['grant'] }), req({ text: 'B', weight: 'preferred', support: 'partial', keywords: ['x'] }), req({ text: 'C', weight: 'must', support: 'none', source_ids: [], keywords: ['y'] })];
+  assert.equal(fitScores(reqs, '').library, fitScores(reqs, 'Wrote grant applications and x and y.').library);
+  assert.equal(fitScores(reqs, '').draft, 0);
+  assert.equal(fitScores(reqs, '').library, Math.floor((100 * (3 + 0.5)) / 7));
+});

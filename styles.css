@@ -640,3 +640,16 @@ body.resizing * { cursor: col-resize !important; }
 .icon-btn.mini .ico { width: .95rem; height: .95rem; }
 .icon-btn.mini[aria-busy="true"] .ico { animation: spin 1s linear infinite; }
 .req-quote { margin: .35rem 0 0; padding-left: .55rem; border-left: 2px solid var(--ok); font: italic 400 .8125rem/1.4 var(--ui); color: var(--muted); }
+
+/* The potential score on a posting */
+.pst-fit { margin-bottom: 1.25rem; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+.pfit-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; }
+.pfit-main { display: flex; align-items: center; gap: 1rem; margin-bottom: .75rem; }
+.pfit-main strong { font: 600 3rem/1 var(--head); letter-spacing: -.03em; color: var(--accent); font-variant-numeric: tabular-nums; min-width: 3.4rem; }
+.pfit-main > div { flex: 1; min-width: 0; }
+.pfit-main .meter { margin-bottom: .4rem; }
+.pfit-main p { margin: 0; font-size: .8125rem; color: var(--muted); }
+.pst-fit .fold { margin-bottom: .4rem; }
+.pot { flex: none; margin-left: .4rem; padding: 0 .4rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font: 700 .75rem/1.35 var(--head); font-variant-numeric: tabular-nums; }
+.pot.wait { background: var(--sunken); color: var(--muted); }
+.ritem-text .sub { align-items: center; }
