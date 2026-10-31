@@ -12,7 +12,7 @@ import {
   emptyKnowledge, normalizeKnowledge, answersSince, applyAnswer, removeEntry, filterQuestions, liveEntries, pendingItems, markMerged
 } from './knowledge.js?v=30';
 import { syncKnowledge, updateLibrary, pullFile, PROFILE_PATH } from './sync.js?v=30';
-import { cleanPosting } from './posting.js?v=30';
+import { cleanPosting, postingUrl, siteOf } from './posting.js?v=30';
 import { checkDeadline, findDeadline, deadlineState, icsFor } from './deadline.js?v=30';
 import { buildFitRequest, checkFit, fitScores, citedIdsOf, fingerprint } from './fit.js?v=30';
 import { buildLibrarianRequest, applyPatch, describeOp } from './library.js?v=30';
@@ -328,9 +328,9 @@ function renderBadges() {
 
 /* ---------- the posting: pasted from the clipboard (reading from a link is switched off for now) ---------- */
 
-// Reading a posting from its link has not worked reliably, so the link field is hidden. The code stays; set this
-// to true to bring the field back.
-const LINK_READING = false;
+// A posting can be read from its link (Anthropic's web fetch) when the page carries its text; pages built with
+// scripts cannot be read, and pasting the text is the fallback. Set this to false to hide the link field.
+const LINK_READING = true;
 
 // The posting is never edited on this page. It is accepted from the clipboard (or read from a link, when that is on),
 // and the page only shows that it arrived. View shows the text read-only.
@@ -371,9 +371,6 @@ function renderPosting() {
 function updateLinkUi() {
   const linkOk = Boolean(normalizeUrl($('applink').value));
   $('fetch').hidden = !linkOk || Boolean(posting.text);
-  $('link-hint').textContent = !posting.text
-    ? 'Claude reads the posting from this link and shows you what it found.'
-    : posting.source === 'link' ? 'Read from this link. Clear it to read the page again.' : 'The pasted text will be used. The link is kept with your resume.';
 }
 
 function setPosting(text, source, extra = {}) {
@@ -385,6 +382,16 @@ function setPosting(text, source, extra = {}) {
 
 // Accepts text from the clipboard. Returns true when it looks like a posting and was taken.
 function acceptPasted(raw) {
+  // A pasted web address is the posting's link: keep it, and read the posting from it unless the text is already here.
+  const url = postingUrl(raw);
+  if (url) {
+    $('paste-catch').value = '';
+    $('applink').value = url;
+    saveDraft();
+    updateLinkUi();
+    if (!posting.text) readLinkNow(); else toast('Link added');
+    return true;
+  }
   const text = cleanPosting(raw);
   $('paste-catch').value = '';
   if (text.length < 40) { toast('Too short'); return false; }
@@ -396,7 +403,7 @@ function acceptPasted(raw) {
 function setNotesOpen(open) {
   $('notes-field').hidden = !open;
   $('toggle-notes').setAttribute('aria-expanded', String(open));
-  $('toggle-notes').textContent = open ? '- Instructions' : '+ Instructions';
+  $('toggle-notes').classList.toggle('on', open);
 }
 
 /* ---------- reading a posting from its link ---------- */
@@ -416,23 +423,33 @@ async function readPostingFromLink(link) {
 
 const sentence = (s) => (/[.!?]$/.test(s) ? s : `${s}.`);
 const fetchHint = (message) => (/web.?fetch|not enabled|permission/i.test(message)
-  ? `${sentence(message)} Reading links needs web fetch to be allowed for your Anthropic organization. Paste the posting text instead.`
-  : `${sentence(message)} Paste the posting text instead.`);
+  ? `${sentence(message)} Web fetch must be allowed for your Anthropic organization. Paste the text instead.`
+  : `${sentence(message)} Paste the text instead.`);
 
 // Reads the posting from the link and stores it. Returns true when the posting text is now held.
 async function fillPostingFromLink(link, msg) {
   msg.textContent = 'Reading…';
   try {
     const got = await readPostingFromLink(link);
-    if (!got.ok) { msg.textContent = fetchHint(`Could not read that page: ${got.problem}`); $('paste-catch').focus(); return false; }
+    if (!got.ok) { msg.textContent = fetchHint(`Could not read the page: ${got.problem}`); $('paste-catch').focus(); return false; }
     setPosting(got.text, 'link', { link, title: got.title, company: got.company });
     toast('Read');
     return true;
   } catch (err) {
-    msg.textContent = fetchHint(`Could not read that page: ${err.message}`);
+    msg.textContent = fetchHint(`Could not read the page: ${err.message}`);
     $('paste-catch').focus();
     return false;
   }
+}
+
+async function readLinkNow() {
+  const link = normalizeUrl($('applink').value);
+  if (!link) return;
+  $('applink').value = link;
+  saveDraft();
+  setBusy($('fetch'), true, 'Reading\u2026');
+  $('fetch').hidden = false;
+  try { await fillPostingFromLink(link, $('gen-msg')); } finally { setBusy($('fetch'), false); updateLinkUi(); }
 }
 
 /* ---------- tailoring ---------- */
@@ -762,9 +779,13 @@ function renderCurrent() {
   $('res-status').value = history.find((e) => e.id === c.id)?.status || STATUSES[0];
   $('res-title').textContent = c.title || 'Resume';
   $('res-sub').textContent = [c.company, c.location].filter(Boolean).join(' \u00b7 ');
-  const linkEl = $('res-link');
-  linkEl.hidden = !c.link;
-  if (c.link) linkEl.href = c.link;
+  const site = c.link ? siteOf(c.link) : null;
+  $('res-link').hidden = !site;
+  if (site) {
+    $('res-link').href = c.link;
+    $('res-host').textContent = site.host;
+    $('res-logo').innerHTML = siteLogo(site, 18);
+  }
 
   const paper = $('resume');
   paper.classList.toggle('plain', c.edited);
@@ -1372,6 +1393,7 @@ function paletteCommands() {
       { group: 'Resume', label: 'PDF', hint: `${MOD} S`, run: () => $('pdf').click() },
       { group: 'Resume', label: 'TXT', run: download },
       { group: 'Resume', label: 'Compare', run: () => openCompare() },
+      { group: 'Resume', label: 'Posting link', run: openLinkDialog },
       ...(current.deadline ? [{ group: 'Resume', label: 'Deadline to calendar', run: downloadDeadline }] : []),
       { group: 'Resume', label: 'Rescore fit', run: () => { showView('resume', 'fit'); assessFit(); } }
     );
@@ -1556,7 +1578,46 @@ function wirePanels() {
   }
 }
 
+/* ---------- the posting link ---------- */
+
+function openLinkDialog() {
+  if (!current) return;
+  $('link-input').value = current.link || '';
+  $('link-msg').textContent = '';
+  showDialog('link-dialog');
+  $('link-input').focus();
+}
+
+function saveLink(raw) {
+  const text = String(raw || '').trim();
+  const link = text ? normalizeUrl(text) : '';
+  if (text && !link) { $('link-msg').textContent = 'Not a link'; return; }
+  current.link = link || '';
+  saveEntry({ link: current.link });
+  $('link-dialog').close();
+  renderCurrent();
+  renderRail();
+  toast(link ? 'Link saved' : 'Link removed');
+}
+
+// A site's icon is tried straight from the site first. Some sites refuse to let other pages show it, so then
+// DuckDuckGo's icon service is asked for it (it is told only the site's name); failing that, its first letter.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.classList.contains('site-img')) return;
+  if (!img.dataset.stage && img.dataset.host) {
+    img.dataset.stage = 'service';
+    img.src = `https://icons.duckduckgo.com/ip3/${img.dataset.host}.ico`;
+  } else {
+    img.replaceWith(Object.assign(document.createElement('span'), { className: 'site-letter', textContent: img.dataset.letter || '?' }));
+  }
+}, true);
+
 /* ---------- history ---------- */
+
+// The posting site's own icon (its /favicon.ico, fetched straight from that site), or a letter tile if it has none.
+const siteLogo = (site, px = 20) => `<img class="site-img" src="${esc(site.origin)}/favicon.ico" alt="" width="${px}" height="${px}" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-letter="${esc(site.letter)}" data-host="${esc(new URL(site.origin).hostname)}">`;
+const letterTile = (letter) => `<span class="site-letter" aria-hidden="true">${esc(letter)}</span>`;
 
 // A short due date for a draft whose deadline is near or past.
 function dueTag(e) {
@@ -1573,8 +1634,8 @@ function renderHistory() {
 function renderRail() {
   const dot = { Drafted: 'draft', Applied: 'applied', Interviewing: 'live', Offer: 'win', Rejected: 'out', Withdrawn: 'out' };
   $('history').innerHTML = history.map((e) => `<li data-id="${esc(e.id)}"${current && e.id === current.id && document.body.dataset.view === 'resume' ? ' aria-current="true"' : ''}>
-    <button type="button" class="ritem" data-open><span class="dot ${dot[e.status] || 'draft'}" title="${esc(e.status || 'Drafted')}"></span>
-      <span class="ritem-text"><strong>${esc(e.title || 'Resume')}</strong><span class="sub"><i class="co">${esc(e.company || shortDate(e.at))}</i>${dueTag(e)}</span></span></button>
+    <button type="button" class="ritem" data-open><span class="site" aria-hidden="true">${(() => { const st = e.link && siteOf(e.link); return st ? siteLogo(st, 20) : letterTile((e.company || e.title || '?')[0].toUpperCase()); })()}</span>
+      <span class="ritem-text"><strong>${esc(e.title || 'Resume')}</strong><span class="sub"><i class="co">${esc(e.company || shortDate(e.at))}</i>${dueTag(e)}</span></span><span class="dot ${dot[e.status] || 'draft'}" title="${esc(e.status || 'Drafted')}"></span></button>
     <button type="button" class="ritem-x" data-delete aria-label="Delete"><i data-icon="close"></i></button></li>`).join('');
   hydrateIcons($('history'));
 }
@@ -1679,13 +1740,7 @@ async function init() {
     });
   }
   $('applink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('gen').requestSubmit(); } });
-  $('fetch').addEventListener('click', async () => {
-    const link = normalizeUrl($('applink').value);
-    if (!link) return;
-    $('applink').value = link;
-    setBusy($('fetch'), true, 'Reading...');
-    try { await fillPostingFromLink(link, $('gen-msg')); } finally { setBusy($('fetch'), false); }
-  });
+  $('fetch').addEventListener('click', readLinkNow);
   $('paste-catch').addEventListener('paste', (e) => { e.preventDefault(); acceptPasted(e.clipboardData?.getData('text/plain')); });
   $('paste-catch').addEventListener('input', (e) => { if (/^insertFrom(Paste|Drop)/.test(e.inputType || '')) acceptPasted($('paste-catch').value); });
   $('paste').addEventListener('click', async () => {
@@ -1735,6 +1790,9 @@ async function init() {
   $('res-status').innerHTML = STATUSES.map((x) => `<option>${x}</option>`).join('');
   $('res-status').addEventListener('change', onStatusChange);
   $('deadline').addEventListener('click', downloadDeadline);
+  $('edit-link').addEventListener('click', openLinkDialog);
+  $('link-form').addEventListener('submit', (e) => { e.preventDefault(); saveLink($('link-input').value); });
+  $('link-clear').addEventListener('click', () => saveLink(''));
   wireDesktop();
   wirePanels();
   $('open-compare-top').addEventListener('click', () => openCompare());

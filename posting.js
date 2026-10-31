@@ -86,3 +86,23 @@ export function cleanPosting(raw) {
   const squeezed = out.filter((l, i) => !(l === '' && out[i - 1]?.startsWith('- ') && out[i + 1]?.startsWith('- ')));
   return squeezed.join('\n');
 }
+
+// If the pasted text is only a web address, that address (with the scheme added if it was left off). Otherwise ''.
+export function postingUrl(raw) {
+  const t = String(raw ?? '').trim().replace(/[.,;)\]]+$/, '');
+  if (!t || /\s/.test(t)) return '';
+  if (!/^https?:\/\//i.test(t) && !/^www\./i.test(t)) return '';
+  try {
+    const u = new URL(/^https?:/i.test(t) ? t : `https://${t}`);
+    return ['http:', 'https:'].includes(u.protocol) && u.hostname.includes('.') ? u.toString() : '';
+  } catch { return ''; }
+}
+
+// The site a posting lives on, for its logo and label: { host: "governmentjobs.com", origin, letter }.
+export function siteOf(link) {
+  try {
+    const u = new URL(link);
+    const host = u.hostname.replace(/^www\./, '');
+    return { host, origin: u.origin, letter: (host[0] || '?').toUpperCase() };
+  } catch { return null; }
+}

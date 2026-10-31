@@ -63,15 +63,6 @@
       <!-- New resume -->
       <section id="v-tailor" class="view" data-view="tailor">
         <form id="gen" class="tailor" novalidate>
-          <div class="field" id="link-field" hidden>
-            <label for="applink">Link</label>
-            <div class="input-wrap">
-              <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://">
-              <button id="fetch" type="button" class="link-btn" aria-label="Read" hidden>Read</button>
-            </div>
-            <p id="link-hint" class="hint"></p>
-          </div>
-
           <div id="posting-source" class="posting-source">
             <div id="paste-empty" class="drop">
               <textarea id="paste-catch" aria-label="Paste the posting" placeholder="Paste or drop the posting" spellcheck="false"></textarea>
@@ -85,6 +76,15 @@
                 <button id="clear-posting" type="button" class="btn quiet">Clear</button>
               </div>
             </div>
+          </div>
+
+          <div class="field" id="link-field">
+            <label for="applink">Link</label>
+            <div class="input-wrap">
+              <input id="applink" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Posting link (optional)">
+              <button id="fetch" type="button" class="link-btn" aria-label="Read the posting from the link" hidden>Read</button>
+            </div>
+            <p id="link-hint" class="hint" hidden></p>
           </div>
 
           <div class="opts">
@@ -116,7 +116,8 @@
           <div class="doc-meta">
             <button id="deadline" type="button" class="stat stat-btn due" hidden></button>
             <select id="res-status" aria-label="Status"></select>
-            <a id="res-link" class="btn quiet" target="_blank" rel="noopener noreferrer" aria-label="Application" hidden><i data-icon="external"></i></a>
+            <a id="res-link" class="site-link" target="_blank" rel="noopener noreferrer" title="Open the posting" hidden><span id="res-logo" class="site"></span><span id="res-host"></span><i data-icon="external"></i></a>
+            <button id="edit-link" type="button" class="btn quiet" aria-label="Posting link"><i data-icon="link"></i></button>
             <button type="button" class="btn quiet panel-toggle" data-panel-toggle="ins" aria-label="Show or hide the panel"><i data-icon="panel-right"></i></button>
           </div>
         </header>
@@ -331,6 +332,19 @@
     </div>
     <button id="regen-go" type="button" class="btn primary block"><i data-icon="refresh"></i><span>Redo</span></button>
     <p id="regen-msg" class="msg" role="status" aria-live="polite"></p>
+  </dialog>
+
+  <!-- Posting link -->
+  <dialog id="link-dialog" class="sheet" aria-labelledby="link-h">
+    <div class="sheet-head"><h2 id="link-h">Posting link</h2><button type="button" class="btn quiet" data-close aria-label="Close"><i data-icon="close"></i></button></div>
+    <form id="link-form" autocomplete="off">
+      <input id="link-input" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://" aria-label="Posting link">
+      <div class="btn-row">
+        <button type="submit" class="btn primary">Save</button>
+        <button id="link-clear" type="button" class="btn">Remove</button>
+      </div>
+      <p id="link-msg" class="msg" role="alert"></p>
+    </form>
   </dialog>
 
   <!-- Posting text -->

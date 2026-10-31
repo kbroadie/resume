@@ -90,3 +90,17 @@ test('a stack of labels and values becomes one line each, and a page-loaded noti
   assert.deepEqual(findDeadline(out, NOW), { date: '2026-11-15', quote: 'Closing Date: 11/15/2026 at 11:59 PM Pacific Time' });
   assert.equal(cleanPosting('Employer\n\nAcme\n\nSalary\n\n$1\n\nDo the work.'), cleanPosting('Employer\n\nAcme\n\nSalary\n\n$1\n\nDo the work.'));
 });
+
+test('pasted text that is only a web address is recognized as the posting link', async () => {
+  const { postingUrl, siteOf } = await import('../posting.js');
+  assert.equal(postingUrl('https://www.governmentjobs.com/jobs/5510965-0/information-technology-technician'), 'https://www.governmentjobs.com/jobs/5510965-0/information-technology-technician');
+  assert.equal(postingUrl('  https://acme.com/careers/12.  \n'), 'https://acme.com/careers/12');
+  assert.equal(postingUrl('www.acme.com/jobs/9'), 'https://www.acme.com/jobs/9');
+  assert.equal(postingUrl('See https://acme.com/jobs for the posting'), '');
+  assert.equal(postingUrl('Brand Designer\nhttps://acme.com'), '');
+  assert.equal(postingUrl('javascript:alert(1)'), '');
+  assert.equal(postingUrl('acme'), '');
+  assert.equal(postingUrl(''), '');
+  assert.deepEqual(siteOf('https://www.governmentjobs.com/jobs/1'), { host: 'governmentjobs.com', origin: 'https://www.governmentjobs.com', letter: 'G' });
+  assert.equal(siteOf('nonsense'), null);
+});
