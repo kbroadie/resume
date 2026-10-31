@@ -80,3 +80,13 @@ test('the calendar file is an all-day event with a reminder two days before', ()
   assert.match(ics, /SUMMARY:Apply: Designer\\, Acme/);
   assert.match(ics, /TRIGGER:-P2D/);
 });
+
+test('a stack of labels and values becomes one line each, and a page-loaded notice is dropped', () => {
+  const raw = ['Information Technology Technician', '', 'Employer', '', 'College of the Desert (CA)', '', 'Salary', '', '$65,805.48 - $92,595.48 Annually', '', 'Location', '', 'Palm Desert, CA', '', 'Closing Date', '', '11/15/2026 at 11:59 PM Pacific Time', '', 'DESCRIPTION', '', 'You will support the help desk.'].join('\n');
+  const out = cleanPosting(`Information Technology Technician | GovernmentJobs.com page has loaded.\n\n${raw}`);
+  assert.ok(!/page has loaded/i.test(out));
+  assert.ok(out.includes('Employer: College of the Desert (CA)\nSalary: $65,805.48 - $92,595.48 Annually\nLocation: Palm Desert, CA\nClosing Date: 11/15/2026 at 11:59 PM Pacific Time'));
+  assert.ok(out.includes('You will support the help desk.'));
+  assert.deepEqual(findDeadline(out, NOW), { date: '2026-11-15', quote: 'Closing Date: 11/15/2026 at 11:59 PM Pacific Time' });
+  assert.equal(cleanPosting('Employer\n\nAcme\n\nSalary\n\n$1\n\nDo the work.'), cleanPosting('Employer\n\nAcme\n\nSalary\n\n$1\n\nDo the work.'));
+});

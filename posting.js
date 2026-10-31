@@ -14,8 +14,9 @@ const LABELS = [
   /^(accept( all)?( cookies)?|decline|reject( all)?|manage( cookies| preferences)?|cookie (policy|settings|preferences|notice)|privacy( policy| notice| statement)?|terms( of (use|service))?|terms (&|and) conditions|accessibility( statement)?|site ?map|contact us|help)$/i,
   /^(facebook|twitter|x|linkedin|instagram|youtube|tiktok|whatsapp|pinterest|reddit|tweet|share on .{1,20})$/i,
   /^powered by .{0,40}$/i,
+  /^.{0,200}\bpage has loaded\.?$/i,
   /^(©|\(c\)|copyright).{0,100}$/i,
-  /^(menu|search|home|close|open|more|jobs?|careers?|filter|filters|sort|results|loading\.*|skip)$/i,
+  /^(menu|search|home|close|open|more|jobs?|careers?|employers|filter|filters|sort|results|loading\.*|skip)$/i,
   /^[\W_]{1,4}$/
 ];
 const COOKIE = /\bcookies?\b/i;
@@ -30,7 +31,27 @@ export function cleanPosting(raw) {
 
   // Page furniture, then repeats of the same line one after another.
   lines = lines.filter((l) => !l || !isLabel(l));
+  // Page tabs (DESCRIPTION, BENEFITS, QUESTIONS) are dropped when they sit together.
+  const TAB = /^(description|benefits|questions|overview|details|apply)$/i;
+  const around = (i, step) => { for (let k = i + step; k >= 0 && k < lines.length; k += step) if (lines[k]) return lines[k]; return ''; };
+  lines = lines.filter((l, i) => !(l && TAB.test(l) && (TAB.test(around(i, 1)) || TAB.test(around(i, -1)))));
   lines = lines.filter((l, i) => !l || l !== lines.slice(0, i).reverse().find((x) => x));
+
+  // A stack of short labels and values ("Employer", blank, "College of the Desert", blank, "Salary", ...) becomes
+  // "Employer: College of the Desert" lines, once at least three pairs run in a row.
+  const isKey = (l) => l && l.length <= 24 && !/[.:;!?]$/.test(l) && !BULLET.test(l) && /^[A-Z]/.test(l);
+  const isVal = (l) => l && l.length <= 100 && !BULLET.test(l);
+  const stacked = [];
+  for (let i = 0; i < lines.length;) {
+    let j = i;
+    const pairs = [];
+    while (isKey(lines[j]) && lines[j + 1] === '' && isVal(lines[j + 2]) && (lines[j + 3] === '' || j + 3 >= lines.length)) {
+      pairs.push(`${lines[j]}: ${lines[j + 2]}`);
+      j += 4;
+    }
+    if (pairs.length >= 3) { stacked.push(...pairs, ''); i = j; } else { stacked.push(lines[i]); i += 1; }
+  }
+  lines = stacked;
 
   // Bullet marks become one style.
   lines = lines.map((l) => (BULLET.test(l) ? `- ${l.replace(BULLET, '')}` : l));
